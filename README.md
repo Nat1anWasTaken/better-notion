@@ -25,6 +25,11 @@ pnpm check    # lint, typecheck, test and build
 Each tweak lives in `src/tweaks/` and is registered in `src/tweaks/index.ts`.
 The runner isolates tweaks, so one that throws doesn't stop the others.
 
+## Commits
+
+Commit messages must follow Conventional Commits. `pnpm install` sets up a `commit-msg`
+hook that runs commitlint, and CI checks pushed commits and PR titles.
+
 ## Releasing
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please)

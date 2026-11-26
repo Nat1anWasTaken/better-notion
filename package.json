@@ -14,7 +14,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "prepare": "simple-git-hooks"
   },
   "devEngines": {
     "packageManager": {
@@ -26,10 +27,16 @@
   "packageManager": "pnpm@12.23.0",
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "happy-dom": "^21.0.4",
+    "simple-git-hooks": "^2.14.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vite-plugin-monkey": "^8.1.1",
     "vitest": "^5.1.1"
+  },
+  "simple-git-hooks": {
+    "commit-msg": "pnpm exec commitlint --edit \"$1\""
   }
 }
