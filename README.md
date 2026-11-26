@@ -22,8 +22,13 @@ The runner isolates tweaks, so one that throws doesn't stop the others.
 
 ## Releasing
 
-1. Bump `version` in `package.json` and commit.
-2. Tag it and push: `git tag v0.2.0 && git push --tags`.
+Releases are automated with [release-please](https://github.com/googleapis/release-please)
+and driven by [Conventional Commits](https://www.conventionalcommits.org/):
 
-The release workflow builds the script and attaches `better-notion.user.js`
-and `better-notion.meta.js` to a GitHub release.
+1. Push `feat:` / `fix:` commits to `main`. release-please opens (and keeps updating) a
+   release PR that bumps `package.json` and writes `CHANGELOG.md`.
+2. Merge the release PR. That tags the version, creates the GitHub release and attaches
+   `better-notion.user.js` and `better-notion.meta.js`.
+
+While the version is below 1.0.0, `feat:` bumps the minor version, `fix:` bumps the patch and
+a breaking change (`feat!:`) bumps the minor version.
