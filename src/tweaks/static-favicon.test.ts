@@ -33,9 +33,9 @@ describe("staticFavicon", () => {
 
   it("leaves non-icon links alone", async () => {
     const link = addLink("apple-touch-icon", "https://example.com/touch.png");
-    const stylesheet = addLink("stylesheet", "https://example.com/style.css");
+    const preconnect = addLink("preconnect", "https://example.com/");
     await flush();
     expect(link.href).toBe("https://example.com/touch.png");
-    expect(stylesheet.href).toBe("https://example.com/style.css");
+    expect(preconnect.href).toBe("https://example.com/");
   });
 });
