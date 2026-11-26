@@ -26,6 +26,7 @@
   "packageManager": "pnpm@12.23.0",
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",
+    "happy-dom": "^21.0.4",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vite-plugin-monkey": "^8.1.1",

@@ -12,7 +12,7 @@ export default defineConfig({
         namespace: "https://github.com/Nat1anWasTaken/better-notion",
         description: "Personal tweaks for Notion",
         author: "Nat1anWasTaken",
-        match: ["https://www.notion.so/*", "https://www.notion.com/*"],
+        match: ["https://app.notion.com/*", "https://www.notion.so/*"],
         "run-at": "document-start",
         updateURL: `${releaseBase}/better-notion.meta.js`,
         downloadURL: `${releaseBase}/better-notion.user.js`,

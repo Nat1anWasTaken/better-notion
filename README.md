@@ -2,6 +2,11 @@
 
 A userscript with my personal tweaks to Notion.
 
+## Tweaks
+
+- **Static favicon**: keeps the tab icon on the Notion logo instead of the current page's icon,
+  so Notion is easy to find in a collapsed vertical tab bar.
+
 ## Install
 
 1. Install a userscript manager such as [Violentmonkey](https://violentmonkey.github.io/) or [Tampermonkey](https://www.tampermonkey.net/).
