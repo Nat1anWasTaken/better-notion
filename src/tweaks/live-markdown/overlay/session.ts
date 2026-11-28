@@ -41,6 +41,8 @@ export interface SessionHost {
 export type Restructure = "split" | "mergeUp" | "mergeDown" | "indent" | "outdent";
 
 /** Style properties copied from Notion's text, so the source lines up with it. */
+const BLOCK = "[data-block-id]";
+
 /** How long after the user's last edit to wait before taking in edits made elsewhere, in ms. */
 const REMOTE_QUIET = 1500;
 
@@ -109,6 +111,11 @@ export class Session {
   private readonly saved: string[] = [];
   /** When the user last edited, to hold off taking in other edits mid-typing. */
   private lastEdit = 0;
+  /** The mouse over the editor, if it is. */
+  private pointer: { x: number; y: number } | null = null;
+  /** What's under the mouse beneath the editor, innermost first, and where the block was. */
+  private hovered: Element[] = [];
+  private lastRect = "";
 
   private readonly scroller: Element | null;
 
@@ -228,6 +235,14 @@ export class Session {
       this.onInput();
     });
     el.addEventListener("paste", this.onPaste);
+    el.addEventListener("pointermove", (event) => {
+      this.pointer = { x: event.clientX, y: event.clientY };
+      this.hover();
+    });
+    el.addEventListener("pointerleave", () => {
+      this.pointer = null;
+      this.hovered = [];
+    });
 
     el.addEventListener("blur", (event) => {
       // Switching windows blurs too; the caret should still be here when the user comes back.
@@ -242,8 +257,23 @@ export class Session {
         });
       }
     });
-    // Notion listens on the document for these; they belong to this editor.
-    for (const type of ["keypress", "keyup", "beforeinput", "input", "copy", "cut", "paste"]) {
+    // Notion listens on the document for these; they belong to this editor. Hover goes to Notion
+    // through `hover`, as if from the block under the editor.
+    for (const type of [
+      "keypress",
+      "keyup",
+      "beforeinput",
+      "input",
+      "copy",
+      "cut",
+      "paste",
+      "pointerover",
+      "pointerout",
+      "pointermove",
+      "mouseover",
+      "mouseout",
+      "mousemove",
+    ]) {
       el.addEventListener(type, (event) => event.stopPropagation());
     }
   }
@@ -392,6 +422,15 @@ export class Session {
     this.missing = 0;
     this.el.style.opacity = "";
     this.position(block, leaf);
+    // When the block moves or re-renders under a still mouse (Tab, Enter), Notion doesn't know:
+    // its handle would stay where the block was.
+    const rect = leaf.getBoundingClientRect();
+    const where = `${rect.left},${rect.top}`;
+    const stale = this.hovered.some((el) => !el.isConnected);
+    if (where !== this.lastRect || stale) {
+      this.lastRect = where;
+      this.hover(true);
+    }
     const value = this.currentStore.getValue();
     if (value && (value.properties?.title !== this.seen.title || value.type !== this.seen.type)) {
       // Notion echoes saves back (locally, then from the server), sometimes an older one after
@@ -402,6 +441,49 @@ export class Session {
       if (!this.isOurs(value) || value.type !== this.currentType) this.reload(value);
     }
   };
+
+  /**
+   * Passes the mouse on to the Notion block under the editor. Notion shows a block's drag handle
+   * and + button from hover events, which the editor would otherwise catch.
+   */
+  private hover(moved = false) {
+    if (!this.pointer) return;
+    const { x, y } = this.pointer;
+    const target = document
+      .elementsFromPoint(x, y)
+      .find((el) => el !== this.el && !this.el.contains(el));
+    if (!target) return;
+    const init = { clientX: x, clientY: y, view: window };
+    // Notion listens to pointer events; mouse events go too, for anything that doesn't.
+    const send = (el: Element, type: string, extra: MouseEventInit = {}) => {
+      el.dispatchEvent(new PointerEvent(`pointer${type}`, { ...init, ...extra }));
+      el.dispatchEvent(new MouseEvent(`mouse${type}`, { ...init, ...extra }));
+    };
+    const previous = this.hovered.at(0) ?? null;
+    if (moved && target === previous && this.hovered.every((el) => el.isConnected)) {
+      send(target, "move", { bubbles: true });
+      return;
+    }
+    if (moved || target !== previous) {
+      const chain: Element[] = [];
+      for (let el: Element | null = target; el; el = el.parentElement) chain.push(el);
+      // After the block moves, Notion has re-rendered it and needs to be told again.
+      const kept = new Set(
+        this.hovered.filter((el) => chain.includes(el) && !(moved && el.closest(BLOCK))),
+      );
+      if (previous?.isConnected) send(previous, "out", { bubbles: true, relatedTarget: target });
+      for (const el of this.hovered) {
+        if (!kept.has(el) && el.isConnected) send(el, "leave", { relatedTarget: target });
+      }
+      send(target, "over", { bubbles: true, relatedTarget: previous });
+      // Notion shows a block's handle on enter, which doesn't bubble: each element gets its own.
+      for (const el of [...chain].reverse()) {
+        if (!kept.has(el)) send(el, "enter", { relatedTarget: previous });
+      }
+      this.hovered = chain;
+    }
+    send(target, "move", { bubbles: true });
+  }
 
   /** Places the editor over Notion's text and hides that text, keeping room for the source. */
   private position(block: HTMLElement, leaf: HTMLElement) {
