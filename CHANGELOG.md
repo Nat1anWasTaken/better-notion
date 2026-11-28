@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/Nat1anWasTaken/better-notion/compare/better-notion-v0.3.0...better-notion-v0.3.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **live-markdown:** run in the page's context so Notion's code is reachable ([a4548fa](https://github.com/Nat1anWasTaken/better-notion/commit/a4548fa11c0f3c1b4fb557d13fc38a78f46f0cfb))
+
 ## [0.3.0](https://github.com/Nat1anWasTaken/better-notion/compare/better-notion-v0.2.0...better-notion-v0.3.0) (2026-11-28)
 
 
