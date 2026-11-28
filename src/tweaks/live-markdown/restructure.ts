@@ -111,6 +111,11 @@ export function restructure(
       return run(splitOps(at, value, block, before, after), { blockId: block.id, model: 0 });
     }
     case "mergeUp": {
+      // A block right under its parent moves out a level first, with its children, as Notion
+      // does. Merging it into the parent would pull its children up with it.
+      if (parent && value.parent_id === neighbour(blockId, -1)?.store.pointer.id) {
+        return restructure(internals, edited, "outdent", syntax, ids);
+      }
       const previous = neighbour(blockId, -1);
       const target = previous?.store.getValue();
       if (!previous || !target) return null;
@@ -137,6 +142,7 @@ export function restructure(
       if (!parent || index < 0) return null;
       const after = (parent.content ?? []).slice(index + 1).map(record);
       if (after.some((sibling) => !sibling)) return null;
+      // The blocks after it in its parent become its children, keeping the order on the page.
       return run(outdentOps(at, value, parent, after as NonNullable<(typeof after)[number]>[]), {
         blockId,
         model,
