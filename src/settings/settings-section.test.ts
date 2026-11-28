@@ -8,7 +8,19 @@ const tweak: Tweak = {
   id: "demo",
   name: "Demo tweak",
   description: "Does a thing",
-  options: [{ type: "toggle", key: "extra", label: "Extra", default: false }],
+  options: [
+    { type: "toggle", key: "extra", label: "Extra", default: false },
+    {
+      type: "select",
+      key: "mode",
+      label: "Mode",
+      default: "a",
+      choices: [
+        { value: "a", label: "Mode A" },
+        { value: "b", label: "Mode B" },
+      ],
+    },
+  ],
   run: () => undefined,
 };
 const store = new SettingsStore(memoryBackend());
@@ -65,11 +77,41 @@ describe("mountSettingsSection", () => {
     expect(standIn?.textContent).toBe("Profile");
   });
 
+  it("lays out each tweak as a section with a heading", () => {
+    const section = document.querySelector('.bn-section[data-tweak="demo"]');
+    expect(section?.querySelector(".bn-heading")?.textContent).toBe("Demo tweak");
+    expect(section?.querySelectorAll(".bn-row")).toHaveLength(3);
+  });
+
+  it("picks select options from a menu", () => {
+    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Mode"]');
+    expect(button?.textContent).toBe("Mode A");
+    button?.click();
+    expect(button?.getAttribute("aria-expanded")).toBe("true");
+    const items = document.querySelectorAll<HTMLElement>(".bn-menu [role=menuitemradio]");
+    expect([...items].map((item) => item.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+    items[1]?.click();
+    expect(store.getOption(tweak, "mode")).toBe("b");
+    expect(document.querySelector(".bn-menu")).toBeNull();
+    expect(document.querySelector('button[aria-label="Mode"]')?.textContent).toBe("Mode B");
+  });
+
+  it("closes the menu on Escape without closing the dialog", () => {
+    document.querySelector<HTMLButtonElement>('button[aria-label="Mode"]')?.click();
+    let escaped = false;
+    document.addEventListener("keydown", () => (escaped = true), { once: true });
+    document
+      .querySelector(".bn-menu")
+      ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(document.querySelector(".bn-menu")).toBeNull();
+    expect(escaped).toBe(false);
+  });
+
   it("writes switch changes to the store", () => {
     const input = document.querySelector<HTMLInputElement>('[aria-label="Demo tweak"]');
     input?.click();
     expect(store.isEnabled(tweak)).toBe(false);
-    expect(document.querySelector(".bn-options")?.classList.contains("bn-disabled")).toBe(true);
+    expect(document.querySelectorAll(".bn-row.bn-disabled")).toHaveLength(2);
   });
 
   it("closes when a Notion tab is clicked", () => {
