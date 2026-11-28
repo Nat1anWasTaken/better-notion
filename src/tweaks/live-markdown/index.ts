@@ -1,3 +1,4 @@
+import { unsafeWindow } from "vite-plugin-monkey/dist/client";
 import type { Tweak } from "../types";
 import { delay, frames, select, waitFor } from "./commands";
 import { type EquationEditor, equationEditorCss, readEditor, removeEquation } from "./equation";
@@ -93,7 +94,8 @@ export const liveMarkdown: Tweak = {
 
     const getInternals = () => {
       if (internals === undefined) {
-        internals = loadInternals();
+        // The page's own window: Notion's bundle lives there, not in the userscript's sandbox.
+        internals = loadInternals(unsafeWindow);
         if (!internals) {
           console.error(
             "[better-notion] live-markdown: Notion's editor internals weren't found, so this version of Notion isn't supported.",

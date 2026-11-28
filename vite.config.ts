@@ -14,6 +14,10 @@ export default defineConfig({
         author: "Nat1anWasTaken",
         match: ["https://app.notion.com/*", "https://www.notion.so/*"],
         "run-at": "document-start",
+        // Live markdown reads Notion's own JavaScript objects (its bundle, and the React props on
+        // its elements), which only the page's context can see.
+        sandbox: "JavaScript",
+        "inject-into": "page",
         updateURL: `${releaseBase}/better-notion.meta.js`,
         downloadURL: `${releaseBase}/better-notion.user.js`,
       },
