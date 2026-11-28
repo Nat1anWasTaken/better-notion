@@ -2,6 +2,7 @@ import type { Tweak } from "../types";
 import { delay, frames, select, waitFor } from "./commands";
 import { type EquationEditor, equationEditorCss, readEditor, removeEquation } from "./equation";
 import { EDITABLE, type QuoteMarker } from "./model/blocks";
+import { plainText } from "./model/rich-text";
 import { blockStore, type Internals, loadInternals } from "./notion/internals";
 import { editableLeaves, findLeaf, LEAF, leafOf, modelOffset, rangeAtModel } from "./notion/leaf";
 import { EDITOR_CSS } from "./overlay/render";
@@ -11,6 +12,9 @@ import { textOffset } from "./text";
 
 /** How long Notion takes to pick up a selection after a mouseup, in ms. */
 const SELECTION_SETTLE = 50;
+
+const UNAVAILABLE =
+  "Off for now: this version of Notion changed the editor code that live markdown relies on. It will work again once Better Notion is updated for it.";
 
 /** Notion's menus (slash commands, mentions, link search) type into its own editor. */
 const MENU = ".notion-overlay-container :is([role=menu], [role=listbox], [role=dialog])";
@@ -97,10 +101,18 @@ export const liveMarkdown: Tweak = {
           console.error(
             "[better-notion] live-markdown: Notion's editor internals weren't found, so this version of Notion isn't supported.",
           );
+          ctx.setNotice(UNAVAILABLE);
         }
       }
       return internals;
     };
+
+    // Check as soon as Notion's editor is on the page, so the settings can tell the user before
+    // they wonder why nothing happens. Notion's editor code has loaded by then.
+    const probe = window.setInterval(() => {
+      if (internals !== undefined) window.clearInterval(probe);
+      else if (document.querySelector(LEAF)) getInternals();
+    }, 1000);
 
     const options = (): SessionOptions => ({
       source: {
@@ -113,17 +125,40 @@ export const liveMarkdown: Tweak = {
 
     const host: SessionHost = {
       options,
-      release: (current, model) => {
+      release: (current, model, event) => {
+        const length = plainText(current.spans).length;
+        const { blockId } = current;
         current.close();
-        const leaf = findLeaf(current.blockId);
-        if (!leaf) return;
-        placeInNotion(leaf, model);
-        // Notion's menu opens a moment later; don't take the caret back before it does.
+        // Notion's text is current once it has rendered the session's last save.
+        const ready = () => {
+          const leaf = findLeaf(blockId);
+          return leaf && modelOffset(leaf, leaf, leaf.childNodes.length) === length ? leaf : null;
+        };
         handingOff = true;
-        setTimeout(() => {
-          handingOff = false;
-          schedule();
-        }, 300);
+        // Notion's menu opens a moment later; don't take the caret back before it does.
+        const settle = () =>
+          setTimeout(() => {
+            handingOff = false;
+            schedule();
+          }, 300);
+        const leaf = ready();
+        if (leaf) {
+          placeInNotion(leaf, model);
+          settle();
+          return;
+        }
+        // Notion hasn't rendered the last edit yet, so the key can't go to its text now. Type it
+        // there once it has.
+        event.preventDefault();
+        void (async () => {
+          const fresh = await waitFor(ready, 500);
+          if (fresh) {
+            placeInNotion(fresh, model);
+            await delay(SELECTION_SETTLE);
+            document.execCommand("insertText", false, event.key);
+          }
+          settle();
+        })();
       },
       handoff: async (current, model, then) => {
         handingOff = true;
@@ -210,12 +245,12 @@ export const liveMarkdown: Tweak = {
         if (document.activeElement === session.el) return;
         session.close();
       }
-      if (pointerDown || !selection?.isCollapsed || !node) return;
-
-      const el = node instanceof Element ? node : node.parentElement;
+      const el = node instanceof Element ? node : node?.parentElement;
       const leaf = el?.closest<HTMLElement>(LEAF);
       equation = leaf ? readEditor(leaf) : null;
       equationStyle.textContent = equation ? equationEditorCss(equation) : "";
+
+      if (pointerDown || !selection?.isCollapsed || !node || !leaf) return;
       if (
         !leaf?.isContentEditable ||
         leaf.closest("[role=dialog]") ||
@@ -300,6 +335,7 @@ export const liveMarkdown: Tweak = {
     schedule();
 
     return () => {
+      window.clearInterval(probe);
       document.removeEventListener("selectionchange", schedule);
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("pointerup", onPointerUp, true);

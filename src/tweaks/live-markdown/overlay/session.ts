@@ -30,7 +30,7 @@ export interface SessionHost {
    * Closes the session and puts the caret in Notion's text at once, during a key press, so the
    * key's own input goes to Notion.
    */
-  release(session: Session, model: number): void;
+  release(session: Session, model: number, event: KeyboardEvent): void;
   /** Closes the session and moves the caret to the neighbouring block. */
   navigate(session: Session, direction: Direction, x: number): void;
   closed(session: Session): void;
@@ -39,9 +39,6 @@ export interface SessionHost {
 }
 
 export type Restructure = "split" | "mergeUp" | "mergeDown" | "indent" | "outdent";
-
-/** Commit typing after this long without input, so undo steps are about a word long. */
-const COMMIT_DELAY = 400;
 
 /** Style properties copied from Notion's text, so the source lines up with it. */
 const COPIED_STYLES = [
@@ -101,7 +98,6 @@ export class Session {
   private dirty = false;
   private composing = false;
   private closed = false;
-  private timer = 0;
   private frame = 0;
   private missing = 0;
   private styledFor = "";
@@ -278,7 +274,6 @@ export class Session {
     }
     this.currentType = parsed.type;
     this.update(source, parsed, caret);
-    if (typeChanged) this.flush();
   }
 
   private update(source: string, parsed: Parsed, caret: number) {
@@ -287,20 +282,19 @@ export class Session {
     this.parsed = parsed;
     this.dirty = true;
     this.render(caret);
-    clearTimeout(this.timer);
-    this.timer = window.setTimeout(() => this.flush(), COMMIT_DELAY);
+    // Save every edit at once, like Notion does, so its text is current whenever a key is handed
+    // to it. Notion groups edits made close together into one undo step.
+    this.flush();
   }
 
   /** Deletes the hidden prefix of a drawn block (bullet, checkbox, …), turning it into text. */
   private dropPrefix() {
     this.currentType = "text";
     this.update(this.source, parse(this.source, parseOptions("text", this.options())), 0);
-    this.flush();
   }
 
   /** Writes the source back to the block, if it changed. */
   flush() {
-    clearTimeout(this.timer);
     if (!this.dirty) return;
     this.dirty = false;
     const value = this.store.getValue();
@@ -495,12 +489,12 @@ export class Session {
       case "@":
         // Notion opens its menus when these are typed into its own text, so the key press
         // itself goes on to Notion's text.
-        this.host.release(this, this.model);
+        this.host.release(this, this.model, event);
         return;
       case "[":
         // The second `[` of `[[` opens Notion's page link menu.
         if (!collapsed || this.source[caret - 1] !== "[") return;
-        this.host.release(this, this.model);
+        this.host.release(this, this.model, event);
         return;
     }
   };
