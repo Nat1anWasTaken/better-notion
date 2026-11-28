@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0](https://github.com/Nat1anWasTaken/better-notion/compare/better-notion-v0.2.0...better-notion-v0.3.0) (2026-11-28)
+
+
+### Features
+
+* **live-markdown:** edit blocks as markdown source ([1f21f13](https://github.com/Nat1anWasTaken/better-notion/commit/1f21f1381c1a36c5c624fd81b2826d58c15f26cf))
+* **live-markdown:** edit blocks as markdown source ([e62317b](https://github.com/Nat1anWasTaken/better-notion/commit/e62317b8655c5473f1f5c8b722121819a5f3d00a))
+* **settings:** match Notion's settings UI ([0e5bedc](https://github.com/Nat1anWasTaken/better-notion/commit/0e5bedc520c76ea9672188dd7af9969569c0f562))
+* **settings:** match Notion's settings UI ([c997b3b](https://github.com/Nat1anWasTaken/better-notion/commit/c997b3b258a417d8afb5642a0e85cf009892b70d))
+* **settings:** show notices from tweaks ([3d1b1d9](https://github.com/Nat1anWasTaken/better-notion/commit/3d1b1d960a907a8a205b5c37bff76c982c19b912))
+
+
+### Bug Fixes
+
+* **live-markdown:** keep the editor open through Enter, Tab and merges ([c70462a](https://github.com/Nat1anWasTaken/better-notion/commit/c70462ac64bfbc9fef1440805b84a15c05098694))
+* **live-markdown:** merge blocks that have children ([7521abf](https://github.com/Nat1anWasTaken/better-notion/commit/7521abfd88cb9f9f43ecf65421f72722e3f247e8))
+* **live-markdown:** outdent a nested block on Backspace, like Notion ([5177e9c](https://github.com/Nat1anWasTaken/better-notion/commit/5177e9cd8d3871d18bc2f2e97be4761c4f2db801))
+* **live-markdown:** pass hover through to the block under the editor ([eb1a652](https://github.com/Nat1anWasTaken/better-notion/commit/eb1a652091bea036574ad67b7ef14e95530eca66))
+* **live-markdown:** say when Notion's internals are missing ([2d46760](https://github.com/Nat1anWasTaken/better-notion/commit/2d46760aba633b51630431d831283d11cb30e807))
+
 ## [0.2.0](https://github.com/Nat1anWasTaken/better-notion/compare/better-notion-v0.1.0...better-notion-v0.2.0) (2026-11-28)
 
 
