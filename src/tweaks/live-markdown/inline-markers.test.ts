@@ -48,6 +48,11 @@ describe("inline markers", () => {
     expect(render(["a"], list)).toBe("[**a**](a.com)");
   });
 
+  it("keeps adjacent equations apart", () => {
+    const list = tokens([1, { equation: "1" }], [2, { equation: "2" }]);
+    expect(render(["a", "b"], list)).toBe("$a$$b$");
+  });
+
   it("shortens long URLs", () => {
     const list = tokens([1, { link: `https://example.com/${"x".repeat(40)}` }]);
     expect(render(["a"], list)).toMatch(/^\[a\]\(example\.com\/x+…\)$/);

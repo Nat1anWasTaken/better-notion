@@ -48,6 +48,10 @@ describe("tokenFormats", () => {
     expect(tokenFormats(highlight).get("highlight")).toBe("yellow_background");
     const colour = el('<span data-token-index="13" data-notion-highlight="red">x</span>');
     expect(tokenFormats(colour).has("highlight")).toBe(false);
+    const cleared = el(
+      '<span data-token-index="13" data-notion-highlight="default_background">x</span>',
+    );
+    expect(tokenFormats(cleared).has("highlight")).toBe(false);
   });
 });
 

@@ -70,3 +70,30 @@ export function decorationCss(decoration: Decoration): string {
   }
   return rules.join("\n");
 }
+
+/**
+ * Delimiters while Notion's equation editor popup is open: `$$` on their own lines for a block
+ * equation, in the editor and around the rendered equation. An inline equation's editor ends in a
+ * newline that would push a closing `$` onto its own line, so the editor gets the opening `$` and
+ * the equation on the page gets both.
+ */
+export function equationEditorCss(target: { blockId?: string }): string {
+  const editor = "[role=dialog] [data-content-editable-leaf]:focus";
+  if (target.blockId === undefined) {
+    const token = '.notion-text-equation-token[style*="background"]';
+    return [
+      `${editor}::before { content: "$"; ${MARKER_STYLE} }`,
+      `${token}::before, ${token}::after { content: "$"; ${MARKER_STYLE} }`,
+    ].join("\n");
+  }
+  const block = `[data-block-id=${cssString(target.blockId)}] [aria-haspopup=dialog]`;
+  return [
+    ...["before", "after"].map(
+      (pseudo) => `${editor}::${pseudo} { content: "$$"; display: block; ${MARKER_STYLE} }`,
+    ),
+    ...["before", "after"].map(
+      (pseudo) =>
+        `${block}::${pseudo} { content: "$$"; display: block; text-align: center; ${MARKER_STYLE} }`,
+    ),
+  ].join("\n");
+}

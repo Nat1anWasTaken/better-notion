@@ -7,11 +7,13 @@ A userscript with my personal tweaks to Notion.
 - **Static favicon**: keeps the tab icon on the Notion logo instead of the current page's icon,
   so Notion is easy to find in a collapsed vertical tab bar.
 - **Live markdown**: shows the markdown syntax of the text under the caret, like Obsidian's Live
-  Preview: `**bold**`, `[link](url)`, `## ` before headings, `- [ ] ` before to-dos, code fences
-  and so on. The syntax is drawn, not written into the page. Step over a marker with the arrow keys
-  and press Backspace to remove that formatting, press Backspace at the start of a heading or list
-  item to turn it into text, or type `#` at the start of a heading to make it smaller. Slash
-  commands and undo work as usual.
+  Preview: `**bold**`, `[link](url)`, `==highlight==`, `$equation$`, `## ` before headings,
+  `- [ ] ` before to-dos, code fences and so on. The syntax is drawn, not written into the page.
+  Step over a marker with the arrow keys and press Backspace to remove that formatting, link,
+  highlight or equation (an equation leaves its TeX behind as text). Backspace at the start of a
+  heading or list item turns it into text, `#` at the start of a heading makes it smaller, and an
+  equation's editor shows its `$` / `$$` delimiters, where Backspace at the start turns the
+  equation into text. Slash commands and undo work as usual.
 
 ## Settings
 

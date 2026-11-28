@@ -1,16 +1,28 @@
 import type { Tweak } from "../types";
 import { blockMarker, headingLevel } from "./block-markers";
-import { decorationCss, type Placement } from "./decorate";
+import {
+  closeEditor,
+  digitKey,
+  letterKey,
+  removeHighlight,
+  removeLink,
+  replaceWithText,
+  select,
+  sendKey,
+  waitFor,
+} from "./commands";
+import { decorationCss, equationEditorCss, type Placement } from "./decorate";
 import { blockType, type Format, tokenFormats } from "./detect";
 import { closers, findRuns, markersFor, openers, type Run, type Token } from "./inline-markers";
 import { rangeAt, textOffset } from "./text";
 
 interface TokenSpan extends Token {
+  el: Element;
   start: number;
   end: number;
 }
 
-/** What the caret is on, recomputed on every caret move or edit. */
+/** What the caret is on in a text block, recomputed on every caret move or edit. */
 interface Active {
   leaf: HTMLElement;
   block: HTMLElement;
@@ -19,14 +31,23 @@ interface Active {
   revealed: Run[];
 }
 
+/** Notion's popup editor for an equation's TeX, with the equation it edits. */
+interface EquationEditor {
+  leaf: HTMLElement;
+  caret: number;
+  /**
+   * The equation block being edited, or where an inline equation's token is. Notion re-renders
+   * tokens freely, so it's kept as an address rather than a node.
+   */
+  target: { block: HTMLElement } | { blockId: string; index: string };
+}
+
 interface Armed {
   run: Run;
   side: "before" | "after";
 }
 
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
-
-/** Notion's own shortcuts for formats that can be removed from a marker. */
+/** Notion's toggle shortcuts for formats that have one. */
 const FORMAT_SHORTCUTS: Partial<Record<Format, { key: string; shift?: boolean }>> = {
   bold: { key: "b" },
   italic: { key: "i" },
@@ -34,6 +55,14 @@ const FORMAT_SHORTCUTS: Partial<Record<Format, { key: string; shift?: boolean }>
   strike: { key: "s", shift: true },
   code: { key: "e" },
 };
+
+/** Formats whose markers can be deleted. The rest go through Notion's menus. */
+const EDITABLE = new Set<Format>([
+  ...(Object.keys(FORMAT_SHORTCUTS) as Format[]),
+  "link",
+  "highlight",
+  "equation",
+]);
 
 /** Blocks whose syntax Backspace removes, turning them into text. */
 const PREFIX_TYPES = new Set([
@@ -48,29 +77,18 @@ const PREFIX_TYPES = new Set([
   "quote",
 ]);
 
-function sendShortcut(
-  target: Element,
-  init: { key: string; code: string; keyCode: number; shift?: boolean; alt?: boolean },
-): void {
-  target.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: init.key,
-      code: init.code,
-      keyCode: init.keyCode,
-      which: init.keyCode,
-      metaKey: IS_MAC,
-      ctrlKey: !IS_MAC,
-      shiftKey: init.shift ?? false,
-      altKey: init.alt ?? false,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-    }),
-  );
+/** The TeX source KaTeX keeps in the rendered equation. */
+function texOf(equation: Element): string {
+  return equation.querySelector("annotation")?.textContent ?? "";
 }
 
 function hasModifiers(event: KeyboardEvent): boolean {
   return event.metaKey || event.ctrlKey || event.altKey || event.shiftKey;
+}
+
+function consume(event: KeyboardEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 export const liveMarkdown: Tweak = {
@@ -128,7 +146,7 @@ export const liveMarkdown: Tweak = {
       key: "editable",
       label: "Editable markers",
       description:
-        "Step over a marker with the arrow keys and press Backspace or Delete to remove the formatting. Backspace at the start of a heading, list item, quote or toggle turns it into text, and # at the start of a heading makes it smaller.",
+        "Step over a marker with the arrow keys and press Backspace or Delete to remove the formatting, link, highlight or equation. Backspace at the start of a heading, list item, quote, toggle or equation turns it into text, and # at the start of a heading makes it smaller.",
       default: true,
     },
   ],
@@ -138,7 +156,9 @@ export const liveMarkdown: Tweak = {
     (document.head ?? document.documentElement).append(style);
 
     let active: Active | null = null;
+    let editor: EquationEditor | null = null;
     let armed: Armed | null = null;
+    let busy = false;
     let observed: Element | null = null;
     let scheduled = false;
 
@@ -151,29 +171,51 @@ export const liveMarkdown: Tweak = {
       return hidden;
     };
 
-    const readActive = (): Active | null => {
+    const focusedLeaf = () => {
       const selection = document.getSelection();
       const node = selection?.focusNode;
       if (!selection || !node) return null;
       const el = node instanceof Element ? node : node.parentElement;
       const leaf = el?.closest<HTMLElement>("[data-content-editable-leaf]");
-      const block = leaf?.closest<HTMLElement>("[data-block-id]");
-      if (!leaf || !block || !leaf.isContentEditable) return null;
+      if (!leaf?.isContentEditable) return null;
+      return { leaf, caret: textOffset(leaf, node, selection.focusOffset) };
+    };
 
-      const caret = textOffset(leaf, node, selection.focusOffset);
+    /**
+     * Notion edits an equation's TeX in a popup. A block equation marks its button as expanded;
+     * an inline equation being edited gets a selection background.
+     */
+    const readEditor = (leaf: HTMLElement, caret: number): EquationEditor | null => {
+      if (!leaf.closest("[role=dialog]")) return null;
+      const block = document
+        .querySelector(".notion-equation-block [aria-haspopup=dialog][aria-expanded=true]")
+        ?.closest<HTMLElement>("[data-block-id]");
+      if (block) return { leaf, caret, target: { block } };
+      const token = [...document.querySelectorAll(".notion-text-equation-token")].find((t) =>
+        /background/.test(t.getAttribute("style") ?? ""),
+      );
+      const blockId = token?.closest<HTMLElement>("[data-block-id]")?.dataset.blockId;
+      const index = token?.getAttribute("data-token-index");
+      return blockId && index ? { leaf, caret, target: { blockId, index } } : null;
+    };
+
+    const readActive = (leaf: HTMLElement, caret: number): Active | null => {
+      const block = leaf.closest<HTMLElement>("[data-block-id]");
+      if (!block) return null;
       const hidden = hiddenFormats();
       const tokens: TokenSpan[] =
         blockType(block) === "code"
           ? []
-          : [...leaf.querySelectorAll("[data-token-index]")].map((token) => {
-              const formats = tokenFormats(token);
+          : [...leaf.querySelectorAll("[data-token-index]")].map((el) => {
+              const formats = tokenFormats(el);
               for (const format of hidden) formats.delete(format);
-              const start = textOffset(leaf, token, 0);
+              const start = textOffset(leaf, el, 0);
               return {
-                index: Number(token.getAttribute("data-token-index")),
+                el,
+                index: Number(el.getAttribute("data-token-index")),
                 formats,
                 start,
-                end: start + (token.textContent?.length ?? 0),
+                end: start + (el.textContent?.length ?? 0),
               };
             });
       const runs = findRuns(tokens);
@@ -189,6 +231,12 @@ export const liveMarkdown: Tweak = {
     };
 
     const render = () => {
+      if (editor) {
+        style.textContent = equationEditorCss(
+          "block" in editor.target ? { blockId: editor.target.block.dataset.blockId ?? "" } : {},
+        );
+        return;
+      }
       if (!active) {
         style.textContent = "";
         return;
@@ -212,7 +260,9 @@ export const liveMarkdown: Tweak = {
 
     const update = () => {
       const previous = active;
-      active = readActive();
+      const focused = focusedLeaf();
+      editor = focused && readEditor(focused.leaf, focused.caret);
+      active = focused && !editor ? readActive(focused.leaf, focused.caret) : null;
       if (!active || active.leaf !== previous?.leaf || active.caret !== previous?.caret) {
         armed = null;
       }
@@ -235,33 +285,82 @@ export const liveMarkdown: Tweak = {
       });
     }
 
-    /** Removes a run's formatting with Notion's own shortcut, so it lands in undo history. */
-    const removeFormat = (state: Active, run: Run) => {
-      const shortcut = FORMAT_SHORTCUTS[run.format];
+    /** Runs an edit that spans several frames, ignoring keys until it's done. */
+    const perform = async (edit: () => Promise<unknown>) => {
+      busy = true;
+      try {
+        await edit();
+      } catch (error) {
+        console.error("[better-notion] live-markdown edit failed", error);
+      } finally {
+        busy = false;
+        schedule();
+      }
+    };
+
+    /** Removes a run's formatting the way Notion would, so it lands in undo history. */
+    const removeFormat = async (state: Active, run: Run) => {
       const first = state.tokens[run.start];
       const last = state.tokens[run.end];
-      const selection = document.getSelection();
-      if (!shortcut || !first || !last || !selection) return;
-      selection.removeAllRanges();
-      selection.addRange(rangeAt(state.leaf, first.start, last.end));
-      const upper = shortcut.key.toUpperCase();
-      sendShortcut(state.leaf, {
-        key: shortcut.key,
-        code: `Key${upper}`,
-        keyCode: upper.charCodeAt(0),
-        shift: shortcut.shift,
-      });
+      if (!first || !last) return;
+      const range = rangeAt(state.leaf, first.start, last.end);
+      const shortcut = FORMAT_SHORTCUTS[run.format];
+      let caret = state.caret;
+
+      if (shortcut) {
+        select(range);
+        sendKey(state.leaf, letterKey(shortcut.key, { shift: shortcut.shift }));
+      } else if (run.format === "link") {
+        await removeLink(state.leaf, range);
+      } else if (run.format === "highlight") {
+        await removeHighlight(state.leaf, range);
+      } else if (run.format === "equation") {
+        // Deleting a $ leaves the TeX behind as text, like breaking the delimiters in markdown.
+        const tex = texOf(first.el);
+        const range = document.createRange();
+        range.setStartBefore(first.el);
+        range.setEndAfter(first.el);
+        replaceWithText(range, tex);
+        caret = first.start + (caret > first.start ? tex.length : 0);
+      }
+
       // Notion re-renders the leaf; put the caret back once it has.
+      await waitFor(() => !document.querySelector("[role=dialog] [role=menuitem]"), 500);
       requestAnimationFrame(() => {
         if (!state.leaf.isConnected) return;
-        selection.removeAllRanges();
-        selection.addRange(rangeAt(state.leaf, state.caret));
+        state.leaf.focus();
+        select(rangeAt(state.leaf, caret));
       });
+    };
+
+    /** Turns an equation back into its TeX source as plain text. */
+    const removeEquation = async (current: EquationEditor) => {
+      const tex = current.leaf.textContent?.trim() ?? "";
+      await closeEditor(current.leaf);
+      if ("block" in current.target) {
+        // Closing the editor leaves the block selected; turn it into a text block, which keeps
+        // the TeX.
+        sendKey(document.activeElement ?? document.body, digitKey(0, { alt: true }));
+        return;
+      }
+      const { blockId, index } = current.target;
+      const fresh = await waitFor(() =>
+        document.querySelector(
+          `[data-block-id="${blockId}"] .notion-text-equation-token[data-token-index="${index}"]`,
+        ),
+      );
+      const leaf = fresh?.closest<HTMLElement>("[data-content-editable-leaf]");
+      if (!fresh || !leaf) return;
+      leaf.focus();
+      const range = document.createRange();
+      range.setStartBefore(fresh);
+      range.setEndAfter(fresh);
+      replaceWithText(range, tex);
     };
 
     /** The editable runs whose marker sits at the caret on the given side, in stepping order. */
     const runsAtCaret = (state: Active, side: "before" | "after"): Run[] => {
-      const editable = state.revealed.filter((run) => FORMAT_SHORTCUTS[run.format]);
+      const editable = state.revealed.filter((run) => EDITABLE.has(run.format));
       if (side === "after") {
         return closers(editable).filter((run) => state.tokens[run.end]?.end === state.caret);
       }
@@ -272,23 +371,33 @@ export const liveMarkdown: Tweak = {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.isTrusted || !ctx.getOption<boolean>("editable")) return;
-      const state = active;
+      if (busy) {
+        consume(event);
+        return;
+      }
       const selection = document.getSelection();
-      if (!state || !selection?.isCollapsed || !state.leaf.contains(selection.focusNode)) return;
+      if (!selection?.isCollapsed) return;
+
+      // Backspace at the start of an equation's TeX deletes its opening $ or $$.
+      if (editor?.leaf.contains(selection.focusNode)) {
+        if (event.key === "Backspace" && !hasModifiers(event) && editor.caret === 0) {
+          consume(event);
+          const current = editor;
+          void perform(() => removeEquation(current));
+        }
+        return;
+      }
+
+      const state = active;
+      if (!state) return;
+      if (!state.leaf.contains(selection.focusNode)) return;
 
       // Typing # at the start of a heading makes it one level smaller, like adding a # in markdown.
       if (event.key === "#" && !event.metaKey && !event.ctrlKey && state.caret === 0) {
         const level = headingLevel(state.block);
         if (level && level < 3) {
-          event.preventDefault();
-          event.stopPropagation();
-          const next = level + 1;
-          sendShortcut(state.leaf, {
-            key: String(next),
-            code: `Digit${next}`,
-            keyCode: 48 + next,
-            alt: true,
-          });
+          consume(event);
+          sendKey(state.leaf, digitKey(level + 1, { alt: true }));
           return;
         }
       }
@@ -297,9 +406,8 @@ export const liveMarkdown: Tweak = {
       // text. Notion would merge it into the block above instead.
       if (event.key === "Backspace" && !hasModifiers(event) && state.caret === 0 && !armed) {
         if (PREFIX_TYPES.has(blockType(state.block) ?? "")) {
-          event.preventDefault();
-          event.stopPropagation();
-          sendShortcut(state.leaf, { key: "0", code: "Digit0", keyCode: 48, alt: true });
+          consume(event);
+          sendKey(state.leaf, digitKey(0, { alt: true }));
           return;
         }
       }
@@ -320,11 +428,10 @@ export const liveMarkdown: Tweak = {
 
       if (event.key === "Backspace" || event.key === "Delete") {
         if (armed?.side === side) {
-          event.preventDefault();
-          event.stopPropagation();
+          consume(event);
           const run = armed.run;
           armed = null;
-          removeFormat(state, run);
+          void perform(() => removeFormat(state, run));
         }
         return;
       }
@@ -333,8 +440,7 @@ export const liveMarkdown: Tweak = {
       const runs = runsAtCaret(state, side);
       const next = armed?.side === side ? runs[runs.indexOf(armed.run) + 1] : runs[0];
       if (next) {
-        event.preventDefault();
-        event.stopPropagation();
+        consume(event);
         armed = { run: next, side };
         render();
       } else if (armed) {

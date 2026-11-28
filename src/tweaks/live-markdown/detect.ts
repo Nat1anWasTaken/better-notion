@@ -32,7 +32,10 @@ export function tokenFormats(token: Element): Map<Format, string> {
   const formats = new Map<Format, string>();
   if (token.tagName === "A") formats.set("link", token.getAttribute("href") ?? "");
   const highlight = token.getAttribute("data-notion-highlight");
-  if (highlight?.endsWith("_background")) formats.set("highlight", highlight);
+  // Removing a highlight leaves `default_background` behind.
+  if (highlight?.endsWith("_background") && highlight !== "default_background") {
+    formats.set("highlight", highlight);
+  }
   if (/font-weight:\s*(?:[6-9]00|bold)/.test(style)) formats.set("bold", "");
   if (/font-style:\s*italic/.test(style)) formats.set("italic", "");
   if (/text-decoration[^;]*line-through/.test(style)) formats.set("strike", "");
@@ -40,6 +43,9 @@ export function tokenFormats(token: Element): Map<Format, string> {
   if (token.parentElement?.classList.contains("notion-inline-code-container")) {
     formats.set("code", "");
   }
-  if (token.classList.contains("notion-text-equation-token")) formats.set("equation", "");
+  // Each equation is its own run, even next to another one.
+  if (token.classList.contains("notion-text-equation-token")) {
+    formats.set("equation", token.getAttribute("data-token-index") ?? "");
+  }
   return formats;
 }

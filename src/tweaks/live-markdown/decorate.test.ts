@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cssString, decorationCss } from "./decorate";
+import { cssString, decorationCss, equationEditorCss } from "./decorate";
 
 describe("decorationCss", () => {
   it("targets tokens of the block's own leaf", () => {
@@ -48,5 +48,22 @@ describe("decorationCss", () => {
 
   it("escapes CSS strings", () => {
     expect(cssString('a"b\\c')).toBe('"a\\"b\\\\c"');
+  });
+});
+
+describe("equationEditorCss", () => {
+  it("fences a block equation in the editor and on the page", () => {
+    const css = equationEditorCss({ blockId: "eq" });
+    expect(css).toContain(
+      '[role=dialog] [data-content-editable-leaf]:focus::before { content: "$$"',
+    );
+    expect(css).toContain('[data-block-id="eq"] [aria-haspopup=dialog]::after { content: "$$"');
+  });
+
+  it("marks an inline equation with single dollars", () => {
+    const css = equationEditorCss({});
+    expect(css).toContain(':focus::before { content: "$";');
+    expect(css).toContain('.notion-text-equation-token[style*="background"]::after');
+    expect(css).not.toContain("$$");
   });
 });
