@@ -15,7 +15,11 @@ function addLink(rel: string, href: string): HTMLLinkElement {
 
 describe("staticFavicon", () => {
   beforeAll(() => {
-    staticFavicon.run({ getOption: <T>() => undefined as T, onOptionChange: () => () => {} });
+    staticFavicon.run({
+      getOption: <T>() => undefined as T,
+      onOptionChange: () => () => {},
+      setNotice: () => {},
+    });
   });
 
   it("pins icon links added later", async () => {

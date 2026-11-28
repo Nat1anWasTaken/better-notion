@@ -23,6 +23,11 @@ export interface TweakContext {
   getOption: <T = unknown>(key: string) => T;
   /** Calls `listener` whenever the settings change while the tweak runs. Returns an unsubscribe. */
   onOptionChange: (listener: () => void) => () => void;
+  /**
+   * Shows a notice under the tweak in the settings section, for example why it can't run on this
+   * version of Notion. `null` removes it.
+   */
+  setNotice: (notice: string | null) => void;
 }
 
 export interface Tweak {
