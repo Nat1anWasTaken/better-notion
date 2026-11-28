@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/Nat1anWasTaken/better-notion/compare/better-notion-v0.3.1...better-notion-v0.3.2) (2026-11-28)
+
+
+### Bug Fixes
+
+* **live-markdown:** arrow keys enter a block outside its markers ([d2fca7e](https://github.com/Nat1anWasTaken/better-notion/commit/d2fca7eb5701a3c72929dea83590e60d7fedd669))
+
 ## [0.3.1](https://github.com/Nat1anWasTaken/better-notion/compare/better-notion-v0.3.0...better-notion-v0.3.1) (2026-11-28)
 
 
