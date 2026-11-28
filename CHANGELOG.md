@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/Nat1anWasTaken/better-notion/compare/better-notion-v0.3.2...better-notion-v0.3.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* **live-markdown:** place the caret outside markers at the edges of formatting ([17d6f38](https://github.com/Nat1anWasTaken/better-notion/commit/17d6f38375e707d7dad290637b65fc825f3015d5))
+
 ## [0.3.2](https://github.com/Nat1anWasTaken/better-notion/compare/better-notion-v0.3.1...better-notion-v0.3.2) (2026-11-28)
 
 
