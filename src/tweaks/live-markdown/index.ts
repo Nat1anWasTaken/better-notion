@@ -7,7 +7,7 @@ import { blockStore, type Internals, loadInternals } from "./notion/internals";
 import { editableLeaves, findLeaf, LEAF, leafOf, modelOffset, rangeAtModel } from "./notion/leaf";
 import { EDITOR_CSS } from "./overlay/render";
 import { type Direction, Session, type SessionHost, type SessionOptions } from "./overlay/session";
-import { restructure } from "./restructure";
+import { BlockIds, restructure } from "./restructure";
 import { textOffset } from "./text";
 
 /** How long Notion takes to pick up a selection after a mouseup, in ms. */
@@ -87,11 +87,8 @@ export const liveMarkdown: Tweak = {
     let equation: EquationEditor | null = null;
     /** Set while the caret is being handed to Notion, so the editor doesn't reopen meanwhile. */
     let handingOff = false;
-    /** Set while a change to the page's structure moves the editor to another block. */
-    let moving = false;
-    /** Text typed meanwhile, typed into the editor once it opens. */
-    let pending = "";
     let pointerDown = false;
+    const ids = new BlockIds();
     let scheduled = false;
 
     const getInternals = () => {
@@ -204,28 +201,27 @@ export const liveMarkdown: Tweak = {
         target.scrollIntoView({ block: "nearest" });
         schedule();
       },
-      restructure: async (current, change) => {
-        if (handingOff) return;
+      restructure: (current, change) => {
         const api = getInternals();
-        if (!api) return;
-        handingOff = true;
-        moving = true;
-        pending = "";
+        if (!api || handingOff) return;
         try {
           current.flush();
-          const placement = await restructure(api, current, change, options().source);
+          const placement = restructure(api, current, change, options().source, ids);
           if (!placement) return;
-          current.close();
-          // Wait for Notion to render the change, then edit where the caret went.
-          await frames(2);
-          const leaf = await waitFor(() => findLeaf(placement.blockId));
-          const block = leaf?.closest<HTMLElement>("[data-block-id]");
-          if (leaf && block) open(block, leaf, placement.model)?.insert(pending);
+          // The editor stays focused and moves along, so the caret never leaves it.
+          if (placement.blockId === current.blockId) {
+            current.placeCaret(placement.model);
+          } else {
+            const { store } = current;
+            const pointer = {
+              table: "block",
+              id: placement.blockId,
+              spaceId: store.pointer.spaceId,
+            };
+            current.moveTo(store.getRecordStore(store, pointer), placement.model);
+          }
         } catch (error) {
           console.error("[better-notion] live-markdown couldn't change the page", error);
-        } finally {
-          handingOff = false;
-          moving = false;
         }
       },
       closed: (current) => {
@@ -270,6 +266,7 @@ export const liveMarkdown: Tweak = {
       if (!store || !type || !EDITABLE.has(type)) return null;
       const api = getInternals();
       if (!api) return null;
+      ids.prepare(store);
       session = new Session(host, api, store, block, leaf, caret);
       return session;
     }
@@ -297,17 +294,6 @@ export const liveMarkdown: Tweak = {
 
     /** Backspace at the start of an equation's TeX deletes its opening `$` or `$$`. */
     const onKeyDown = (event: KeyboardEvent) => {
-      // Keep what's typed while the editor moves to another block (after Enter, say).
-      if (moving && event.isTrusted) {
-        if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.isComposing) {
-          pending += event.key;
-        }
-        if (!event.metaKey && !event.ctrlKey) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        return;
-      }
       const current = equation;
       const selection = document.getSelection();
       if (!current || !event.isTrusted || event.key !== "Backspace") return;

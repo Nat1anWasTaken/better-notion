@@ -26,11 +26,33 @@ export interface Edited {
   model: number;
 }
 
-async function newBlockId(store: BlockStore): Promise<string> {
-  const spaceId = store.pointer.spaceId;
-  const creator = store.environment.idCreator;
-  if (spaceId && creator) return creator.idWithSpaceId(spaceId, "block");
-  return crypto.randomUUID();
+/**
+ * Block ids for new blocks. Notion makes them asynchronously, so one is fetched ahead of time and
+ * Enter can split a block at once.
+ */
+export class BlockIds {
+  private readonly spare = new Map<string, string>();
+
+  /** Fetches an id for the block's space, if there isn't one waiting. */
+  prepare(store: BlockStore): void {
+    const spaceId = store.pointer.spaceId;
+    const creator = store.environment.idCreator;
+    if (!spaceId || !creator || this.spare.has(spaceId)) return;
+    creator
+      .idWithSpaceId(spaceId, "block")
+      .then((id) => this.spare.set(spaceId, id))
+      .catch((error) =>
+        console.error("[better-notion] live-markdown couldn't make a block id", error),
+      );
+  }
+
+  take(store: BlockStore): string {
+    const spaceId = store.pointer.spaceId ?? "";
+    const id = this.spare.get(spaceId);
+    this.spare.delete(spaceId);
+    this.prepare(store);
+    return id ?? crypto.randomUUID();
+  }
 }
 
 function neighbour(blockId: string, step: -1 | 1): { store: BlockStore; leaf: HTMLElement } | null {
@@ -47,12 +69,13 @@ function neighbour(blockId: string, step: -1 | 1): { store: BlockStore; leaf: HT
  * neighbour, and Tab and Shift-Tab move it in and out of the block above. Returns where the
  * caret goes, or null if nothing changed.
  */
-export async function restructure(
+export function restructure(
   internals: Internals,
   edited: Edited,
   change: Restructure,
   syntax: Syntax,
-): Promise<Placement | null> {
+  ids: BlockIds,
+): Placement | null {
   const { store, spans, model, blockId } = edited;
   const value = store.getValue();
   if (!value) return null;
@@ -81,7 +104,7 @@ export async function restructure(
         return { blockId, model: 0 };
       }
       const user = store.environment.currentUser?.id ?? "";
-      const block = { id: await newBlockId(store), userId: user, now: Date.now() };
+      const block = { id: ids.take(store), userId: user, now: Date.now() };
       if (model === 0 && text) return run(insertAboveOps(at, value, block), { blockId, model: 0 });
       const before = fromSpans(sliceSpans(spans, 0, model));
       const after = fromSpans(sliceSpans(spans, model));

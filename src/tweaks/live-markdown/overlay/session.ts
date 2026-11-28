@@ -41,6 +41,9 @@ export interface SessionHost {
 export type Restructure = "split" | "mergeUp" | "mergeDown" | "indent" | "outdent";
 
 /** Style properties copied from Notion's text, so the source lines up with it. */
+/** How long after the user's last edit to wait before taking in edits made elsewhere, in ms. */
+const REMOTE_QUIET = 1500;
+
 const COPIED_STYLES = [
   "font-family",
   "font-size",
@@ -84,7 +87,7 @@ function key(span: Span): string {
  * the block through Notion's transactions.
  */
 export class Session {
-  readonly blockId: string;
+  private currentBlockId = "";
   readonly el: HTMLDivElement;
   private readonly style: HTMLStyleElement;
   private currentType: string;
@@ -102,33 +105,26 @@ export class Session {
   private missing = 0;
   private styledFor = "";
   private height = -1;
+  /** Titles this session saved recently, so Notion's echoes of them aren't taken as edits. */
+  private readonly saved: string[] = [];
+  /** When the user last edited, to hold off taking in other edits mid-typing. */
+  private lastEdit = 0;
 
   private readonly scroller: Element | null;
 
   constructor(
     private readonly host: SessionHost,
     private readonly internals: Internals,
-    readonly store: BlockStore,
+    private currentStore: BlockStore,
     block: HTMLElement,
     leaf: HTMLElement,
     caret: number,
   ) {
-    this.blockId = block.dataset.blockId ?? "";
-    const value = store.getValue() as BlockValue;
-    const { source } = host.options();
-    this.currentType = value.type;
-    this.currentSpans = toSpans(value.properties?.title, source);
-    this.seen = { title: value.properties?.title, type: value.type };
-
-    const labels = atomLabels(leaf);
-    let model = 0;
-    for (const span of this.currentSpans) {
-      if (span.text === MENTION_CHAR) this.labels.set(key(span), labels.get(model) ?? "@");
-      model += span.text.length;
-    }
-
-    this.source = serialize(this.currentType, this.currentSpans, source);
-    this.parsed = parse(this.source, parseOptions(this.currentType, source));
+    this.currentType = "";
+    this.currentSpans = [];
+    this.seen = { title: undefined, type: "" };
+    this.parsed = parse("", parseOptions("text", host.options().source));
+    this.load(leaf);
 
     this.el = document.createElement("div");
     this.el.className = "bn-md-editor";
@@ -162,6 +158,55 @@ export class Session {
     this.el.focus({ preventScroll: true });
     this.render(toSource(this.parsed.pieces, caret));
     this.frame = requestAnimationFrame(this.tick);
+  }
+
+  get blockId(): string {
+    return this.currentBlockId;
+  }
+
+  get store(): BlockStore {
+    return this.currentStore;
+  }
+
+  /** Reads the block's value into the editor's source. */
+  private load(leaf: Element | null) {
+    const value = this.currentStore.getValue();
+    const { source } = this.host.options();
+    this.currentBlockId = this.currentStore.pointer.id;
+    this.currentType = value?.type ?? "text";
+    this.currentSpans = toSpans(value?.properties?.title, source);
+    this.seen = { title: value?.properties?.title, type: this.currentType };
+    if (leaf) {
+      const labels = atomLabels(leaf);
+      let model = 0;
+      for (const span of this.currentSpans) {
+        if (span.text === MENTION_CHAR) this.labels.set(key(span), labels.get(model) ?? "@");
+        model += span.text.length;
+      }
+    }
+    this.source = serialize(this.currentType, this.currentSpans, source);
+    this.parsed = parse(this.source, parseOptions(this.currentType, source));
+  }
+
+  /**
+   * Moves the editor to another block, keeping focus so the caret never leaves it, as after
+   * Enter or a merge. Notion may not have rendered the block yet; the editor follows once it has.
+   */
+  moveTo(store: BlockStore, model: number) {
+    this.flush();
+    this.currentStore = store;
+    this.load(findLeaf(store.pointer.id));
+    this.styledFor = "";
+    this.height = -1;
+    this.missing = 0;
+    // Shown again once it's over the block.
+    this.el.style.opacity = "0";
+    this.render(toSource(this.parsed.pieces, model));
+  }
+
+  /** Puts the caret at an offset in the block's plain text. */
+  placeCaret(model: number) {
+    this.render(toSource(this.parsed.pieces, model));
   }
 
   private findScroller(leaf: Element): Element | null {
@@ -246,11 +291,6 @@ export class Session {
     revealMarkers(this.el, this.parsed.runs, scope === "block" ? null : caret);
   }
 
-  /** Types text at the caret, as if from the keyboard. */
-  insert(text: string) {
-    if (text) document.execCommand("insertText", false, text);
-  }
-
   /** The caret moved inside the editor. */
   selectionChanged() {
     this.reveal();
@@ -281,6 +321,7 @@ export class Session {
     this.source = source;
     this.parsed = parsed;
     this.dirty = true;
+    this.lastEdit = performance.now();
     this.render(caret);
     // Save every edit at once, like Notion does, so its text is current whenever a key is handed
     // to it. Notion groups edits made close together into one undo step.
@@ -297,7 +338,7 @@ export class Session {
   flush() {
     if (!this.dirty) return;
     this.dirty = false;
-    const value = this.store.getValue();
+    const value = this.currentStore.getValue();
     if (!value) return;
     const title = fromSpans(this.currentSpans);
     const changes: [string[], unknown][] = [];
@@ -307,12 +348,21 @@ export class Session {
     if (this.currentType !== value.type) changes.push([["type"], this.currentType]);
     if (!changes.length) return;
     try {
-      this.internals.commit(this.store, changes);
+      this.internals.commit(this.currentStore, changes);
     } catch (error) {
       console.error("[better-notion] live-markdown couldn't save the block", error);
     }
-    const after = this.store.getValue();
+    this.saved.push(JSON.stringify(title));
+    if (this.saved.length > 50) this.saved.shift();
+    const after = this.currentStore.getValue();
     this.seen = { title: after?.properties?.title, type: after?.type ?? this.currentType };
+  }
+
+  /** Whether a value of the block is one this session saved, or what it shows now. */
+  private isOurs(value: BlockValue): boolean {
+    const title = JSON.stringify(fromSpans(toSpans(value.properties?.title, this.options())));
+    const current = JSON.stringify(fromSpans(this.currentSpans));
+    return title === current || this.saved.includes(title);
   }
 
   /** Takes in an edit made elsewhere (another tab, a collaborator, Notion's undo). */
@@ -333,16 +383,23 @@ export class Session {
     const leaf = findLeaf(this.blockId);
     const block = leaf?.closest<HTMLElement>("[data-block-id]");
     if (!block || !leaf) {
-      // Notion re-renders a block when its type changes; give up only if it stays gone.
-      if (++this.missing > 30) this.close();
+      // Notion renders a new or moved block a frame or two later. Keep focus meanwhile, but
+      // don't show the editor where the block isn't; give up only if it stays gone.
+      this.el.style.opacity = "0";
+      if (++this.missing > 60) this.close();
       return;
     }
     this.missing = 0;
+    this.el.style.opacity = "";
     this.position(block, leaf);
-    const value = this.store.getValue();
+    const value = this.currentStore.getValue();
     if (value && (value.properties?.title !== this.seen.title || value.type !== this.seen.type)) {
+      // Notion echoes saves back (locally, then from the server), sometimes an older one after
+      // a newer one. Only take in edits made elsewhere, and not while the user is typing.
+      const typing = performance.now() - this.lastEdit < REMOTE_QUIET;
+      if (this.dirty || this.composing || typing) return;
       this.seen = { title: value.properties?.title, type: value.type };
-      if (!this.dirty && !this.composing) this.reload(value);
+      if (!this.isOurs(value) || value.type !== this.currentType) this.reload(value);
     }
   };
 
