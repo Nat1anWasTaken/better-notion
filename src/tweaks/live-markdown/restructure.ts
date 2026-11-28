@@ -113,7 +113,7 @@ export function restructure(
     case "mergeUp": {
       const previous = neighbour(blockId, -1);
       const target = previous?.store.getValue();
-      if (!previous || !target || value.content?.length) return null;
+      if (!previous || !target) return null;
       if (!EDITABLE.has(target.type)) return null;
       const head = toSpans(target.properties?.title, syntax);
       const title = fromSpans([...head, ...spans]);
@@ -125,7 +125,7 @@ export function restructure(
     case "mergeDown": {
       const next = neighbour(blockId, 1);
       const source = next?.store.getValue();
-      if (!next || !source || source.content?.length || !EDITABLE.has(source.type)) return null;
+      if (!next || !source || !EDITABLE.has(source.type)) return null;
       const title = fromSpans([...spans, ...toSpans(source.properties?.title, syntax)]);
       return run(mergeOps(at, title, next.store.pointer, source), { blockId, model });
     }

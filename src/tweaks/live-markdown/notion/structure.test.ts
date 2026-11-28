@@ -46,6 +46,18 @@ describe("structure", () => {
     ]);
   });
 
+  it("moves a merged block's children into its place", () => {
+    const ops = mergeOps(at("a"), [["ab"]], at("b"), block("b", "text", { content: ["c"] }));
+    expect(ops.map((op) => [op.pointer.id, op.command, op.args])).toEqual([
+      ["a", "set", [["ab"]]],
+      ["c", "update", { parent_id: "page", parent_table: "block", alive: true }],
+      ["page", "listBefore", { before: "b", id: "c" }],
+      ["b", "listRemove", { id: "c" }],
+      ["b", "update", { alive: false }],
+      ["page", "listRemove", { id: "b" }],
+    ]);
+  });
+
   it("indents into the block above, after its children", () => {
     const ops = indentOps(at("b"), block("b"), block("a", "bulleted_list", { content: ["c1"] }));
     expect(ops?.map((op) => [op.pointer.id, op.command, op.args])).toEqual([

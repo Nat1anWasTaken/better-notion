@@ -111,22 +111,40 @@ export function insertAboveOps(at: Pointer, value: BlockValue, block: NewBlock):
   ];
 }
 
-/** Appends a block's text to another block's and removes it. */
+/**
+ * Appends a block's text to another block's and removes it. Its children take its place in its
+ * parent, as in Notion.
+ */
 export function mergeOps(
   into: Pointer,
   title: RichText,
   from: Pointer,
   fromValue: BlockValue,
 ): Operation[] {
+  const parent = parentOf(fromValue, from.spaceId);
+  const children = (fromValue.content ?? []).flatMap((id): Operation[] => {
+    const child = pointer("block", id, from.spaceId);
+    return [
+      {
+        pointer: child,
+        path: [],
+        command: "update",
+        args: { parent_id: fromValue.parent_id, parent_table: fromValue.parent_table, alive: true },
+      },
+      {
+        pointer: parent,
+        path: ["content"],
+        command: "listBefore",
+        args: { before: fromValue.id, id },
+      },
+      { pointer: from, path: ["content"], command: "listRemove", args: { id } },
+    ];
+  });
   return [
     titleOps(into, title),
+    ...children,
     { pointer: from, path: [], command: "update", args: { alive: false } },
-    {
-      pointer: parentOf(fromValue, from.spaceId),
-      path: ["content"],
-      command: "listRemove",
-      args: { id: fromValue.id },
-    },
+    { pointer: parent, path: ["content"], command: "listRemove", args: { id: fromValue.id } },
   ];
 }
 
