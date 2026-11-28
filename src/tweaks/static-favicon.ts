@@ -12,6 +12,7 @@ function isIconLink(node: Node): node is HTMLLinkElement {
  */
 export const staticFavicon: Tweak = {
   id: "static-favicon",
+  name: "Static favicon",
   description: "Always show the Notion logo as the tab icon",
   run: () => {
     const href = new URL(FAVICON_PATH, location.origin).href;
@@ -29,7 +30,7 @@ export const staticFavicon: Tweak = {
     };
 
     // At document-start the <head> may not exist yet, so watch the whole document.
-    new MutationObserver((mutations) => {
+    const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         if (mutation.type === "attributes") {
           if (isIconLink(mutation.target)) pin(mutation.target);
@@ -44,7 +45,8 @@ export const staticFavicon: Tweak = {
           }
         }
       }
-    }).observe(document, {
+    });
+    observer.observe(document, {
       subtree: true,
       childList: true,
       attributes: true,
@@ -52,5 +54,7 @@ export const staticFavicon: Tweak = {
     });
 
     pinAll();
+    // Notion sets the page icon again on its next update.
+    return () => observer.disconnect();
   },
 };
