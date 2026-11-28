@@ -1,12 +1,6 @@
-import { FORMATS, type Format } from "./detect";
+import { FORMATS, type Format, type Span } from "./rich-text";
 
-export interface Token {
-  /** Notion's `data-token-index`. Plain text between tokens takes an index too. */
-  index: number;
-  formats: ReadonlyMap<Format, string>;
-}
-
-/** A stretch of contiguous tokens sharing one format. `start` and `end` are token positions. */
+/** A stretch of contiguous spans sharing one format. `start` and `end` are span positions. */
 export interface Run {
   format: Format;
   value: string;
@@ -14,26 +8,26 @@ export interface Run {
   end: number;
 }
 
-export interface Markers {
-  before: string;
-  after: string;
-}
-
 const rank = (run: Run) => FORMATS.indexOf(run.format);
 
 /**
- * Notion flattens formatting into one span per run of identical formats, so `**a *b* c**` arrives
- * as three spans. This groups them back into one run per format.
+ * Notion flattens formatting into one run of text per combination of formats, so `**a *b* c**`
+ * arrives as three spans. This groups them back into one run per format.
  */
-export function findRuns(tokens: readonly Token[]): Run[] {
+export function findRuns(spans: readonly Pick<Span, "formats">[]): Run[] {
   const runs: Run[] = [];
   const open = new Map<Format, Run>();
-  tokens.forEach((token, pos) => {
-    const contiguous = pos > 0 && token.index === (tokens[pos - 1]?.index ?? Number.NaN) + 1;
+  spans.forEach((span, pos) => {
+    const previous = spans[pos - 1]?.formats;
+    const same =
+      previous?.size === span.formats.size &&
+      [...span.formats.keys()].every((f) => previous.has(f));
     for (const format of FORMATS) {
-      const value = token.formats.get(format);
+      const value = span.formats.get(format);
       const current = open.get(format);
-      if (value !== undefined && current && contiguous && current.value === value) {
+      // Each equation is its own run, even next to another one, and nothing can go inside code.
+      const joins = format === "code" ? same : format !== "equation";
+      if (value !== undefined && current?.value === value && joins) {
         current.end = pos;
         continue;
       }
@@ -49,11 +43,11 @@ export function findRuns(tokens: readonly Token[]): Run[] {
 }
 
 /** Markers opening a run go outermost first; markers closing a run go innermost first. */
-export function openers(runs: readonly Run[]): Run[] {
+function openers(runs: readonly Run[]): Run[] {
   return [...runs].sort((a, b) => a.start - b.start || b.end - a.end || rank(a) - rank(b));
 }
 
-export function closers(runs: readonly Run[]): Run[] {
+function closers(runs: readonly Run[]): Run[] {
   return [...runs].sort((a, b) => a.end - b.end || b.start - a.start || rank(b) - rank(a));
 }
 
@@ -68,23 +62,23 @@ const SYMBOLS: Record<Format, readonly [string, string]> = {
   equation: ["$", "$"],
 };
 
-function shortUrl(url: string): string {
-  const bare = url.replace(/^https?:\/\/(www\.)?/, "");
-  return bare.length > 32 ? `${bare.slice(0, 31)}…` : bare;
-}
-
 export function openMarker(run: Run): string {
   return SYMBOLS[run.format][0];
 }
 
 export function closeMarker(run: Run): string {
-  if (run.format === "link") return `](${shortUrl(run.value)})`;
-  return SYMBOLS[run.format][1];
+  return run.format === "link" ? `](${run.value})` : SYMBOLS[run.format][1];
 }
 
-/** The text to draw before and after each token for the given runs. */
-export function markersFor(tokenCount: number, runs: readonly Run[]): Markers[] {
-  const markers = Array.from({ length: tokenCount }, () => ({ before: "", after: "" }));
+export interface Markers {
+  before: string;
+  after: string;
+}
+
+/** The markdown to write before and after each span. */
+export function markersFor(spans: readonly Pick<Span, "formats">[]): Markers[] {
+  const runs = findRuns(spans);
+  const markers = spans.map(() => ({ before: "", after: "" }));
   for (const run of openers(runs)) {
     const marker = markers[run.start];
     if (marker) marker.before += openMarker(run);
