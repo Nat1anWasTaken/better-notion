@@ -132,18 +132,38 @@ describe("parse", () => {
   });
 
   it("maps offsets between source and plain text", () => {
-    const { pieces } = parse("## a**b**$x$c", parseOptions("sub_header", OPTIONS));
+    const parsed = parse("## a**b**$x$c", parseOptions("sub_header", OPTIONS));
+    const { pieces } = parsed;
     // Plain text: "ab⁍c".
-    expect(toSource(pieces, 0)).toBe(3);
-    expect(toSource(pieces, 1)).toBe(4);
-    // Inside the bold run, where typing continues it, like in Notion.
-    expect(toSource(pieces, 2)).toBe(7);
-    expect(toSource(pieces, 3)).toBe(12);
+    expect(toSource(parsed, 0)).toBe(3);
+    expect(toSource(parsed, 1)).toBe(4);
+    // Between runs, outside the markers of both.
+    expect(toSource(parsed, 2)).toBe(9);
+    expect(toSource(parsed, 3)).toBe(12);
     expect(toModel(pieces, 0)).toBe(0);
     expect(toModel(pieces, 5)).toBe(1);
     expect(toModel(pieces, 7)).toBe(2);
     expect(toModel(pieces, 9)).toBe(2);
     expect(toModel(pieces, 12)).toBe(3);
+  });
+
+  it("maps plain-text offsets outside the markers at the edges of runs", () => {
+    const at = (source: string, model: number) =>
+      toSource(parse(source, parseOptions("text", OPTIONS)), model);
+    expect(at("**a** b", 0)).toBe(0);
+    expect(at("**a** b", 1)).toBe(5);
+    expect(at("**a**", 1)).toBe(5);
+    expect(at("a ***b*** c", 2)).toBe(2);
+    expect(at("a ***b*** c", 3)).toBe(9);
+    expect(at("*a **b***", 1)).toBe(2);
+    expect(at("*a **b***", 3)).toBe(9);
+    expect(at("a\\*b", 1)).toBe(1);
+    expect(at("a\\*b", 2)).toBe(3);
+    expect(at("", 0)).toBe(0);
+    const heading = (source: string, model: number) =>
+      toSource(parse(source, parseOptions("header", OPTIONS)), model);
+    expect(heading("# **a**", 0)).toBe(2);
+    expect(heading("# ", 0)).toBe(2);
   });
 
   it("handles pathological input quickly", () => {

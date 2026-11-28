@@ -248,15 +248,25 @@ export function toModel(pieces: readonly Piece[], offset: number): number {
   return model;
 }
 
-/** The source offset of a plain-text offset, before any markers that start there. */
-export function toSource(pieces: readonly Piece[], model: number): number {
-  let best = 0;
+/**
+ * The source offset of a plain-text offset. Where formatting starts or ends there, it's the
+ * offset outside the markers: after the block prefix and any closing markers, before any opening
+ * ones (and before an escape, which belongs to the character after it).
+ */
+export function toSource({ pieces, prefix }: Parsed, model: number): number {
+  let at = 0;
+  const opened = new Set<number>();
   for (const piece of pieces) {
-    const size = length(piece);
-    if (piece.kind === "text" && piece.model <= model && model <= piece.model + size) {
-      return piece.start + model - piece.model;
+    if (piece.kind === "marker") {
+      const opens = piece.run >= 0 ? !opened.has(piece.run) : piece.start >= prefix;
+      opened.add(piece.run);
+      if (piece.model > model || (piece.model === model && opens)) break;
+    } else {
+      if (piece.model >= model) break;
+      const end = piece.model + length(piece);
+      if (piece.kind === "text" && model < end) return piece.start + model - piece.model;
     }
-    if (piece.model + size <= model) best = piece.end;
+    at = piece.end;
   }
-  return best;
+  return at;
 }

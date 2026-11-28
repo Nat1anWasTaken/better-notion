@@ -170,11 +170,7 @@ export class Session {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     this.el.focus({ preventScroll: true });
     this.render(
-      caret === "start"
-        ? 0
-        : caret === "end"
-          ? this.source.length
-          : toSource(this.parsed.pieces, caret),
+      caret === "start" ? 0 : caret === "end" ? this.source.length : toSource(this.parsed, caret),
     );
     this.frame = requestAnimationFrame(this.tick);
   }
@@ -220,12 +216,12 @@ export class Session {
     this.missing = 0;
     // Shown again once it's over the block.
     this.el.style.opacity = "0";
-    this.render(toSource(this.parsed.pieces, model));
+    this.render(toSource(this.parsed, model));
   }
 
   /** Puts the caret at an offset in the block's plain text. */
   placeCaret(model: number) {
-    this.render(toSource(this.parsed.pieces, model));
+    this.render(toSource(this.parsed, model));
   }
 
   private findScroller(leaf: Element): Element | null {
@@ -416,7 +412,7 @@ export class Session {
     if (source === this.source) return;
     this.source = source;
     this.parsed = parse(source, parseOptions(this.currentType, this.options()));
-    this.render(toSource(this.parsed.pieces, model));
+    this.render(toSource(this.parsed, model));
   }
 
   private tick = () => {
