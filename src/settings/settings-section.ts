@@ -8,44 +8,77 @@ const PANEL_CLASS = "bn-settings-panel";
 const HIDDEN_ATTR = "data-bn-hidden";
 
 // Notion's tab and panel classes are generated, so the section clones Notion's own nodes for the
-// sidebar and only styles its own panel, using Notion's colour variables to follow the theme.
+// sidebar and restyles its own panel to match Notion's Preferences panel, using Notion's colour
+// variables so it follows the theme.
 const CSS = `
 [${HIDDEN_ATTR}] { display: none !important; }
-.${PANEL_CLASS} { flex-grow: 1; height: 100%; overflow-y: auto; color: var(--c-texPri); }
-.${PANEL_CLASS} .bn-inner { max-width: 800px; margin: 0 auto; padding: 36px 16px 96px; }
-.${PANEL_CLASS} .bn-title { font-size: 26px; font-weight: 600; line-height: 32px; }
-.${PANEL_CLASS} .bn-subtitle { font-size: 14px; line-height: 20px; color: var(--c-texSec); margin-top: 4px; }
-.${PANEL_CLASS} .bn-tweak { margin-top: 32px; }
-.${PANEL_CLASS} .bn-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0;
+.${PANEL_CLASS} {
+  box-sizing: border-box; flex-grow: 1; height: 100%; overflow-y: auto; padding: 36px 60px 44px;
+  color: var(--c-texPri); background: var(--c-bacPri);
 }
-.${PANEL_CLASS} .bn-options { margin-left: 16px; padding-left: 12px; border-left: 1px solid var(--c-borPri); }
+.${PANEL_CLASS} .bn-inner {
+  display: flex; flex-direction: column; gap: 44px; max-width: 800px; margin: 0 auto;
+}
+.${PANEL_CLASS} .bn-header { display: flex; flex-direction: column; gap: 8px; }
+.${PANEL_CLASS} .bn-title { font-size: 26px; font-weight: 600; line-height: 32px; }
+.${PANEL_CLASS} .bn-subtitle { font-size: 16px; line-height: 24px; }
+.${PANEL_CLASS} .bn-section + .bn-section { margin-top: 48px; }
+.${PANEL_CLASS} .bn-heading {
+  font-size: 16px; font-weight: 500; line-height: 24px;
+  padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid var(--ca-borSecTra);
+}
+.${PANEL_CLASS} .bn-rows { display: flex; flex-direction: column; gap: 24px; }
+.${PANEL_CLASS} .bn-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.${PANEL_CLASS} .bn-text { flex: 3 1 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .${PANEL_CLASS} .bn-label { font-size: 14px; font-weight: 500; line-height: 20px; }
-.${PANEL_CLASS} .bn-tweak > .bn-row .bn-label { font-size: 16px; }
 .${PANEL_CLASS} .bn-desc { font-size: 13px; line-height: 18px; color: var(--c-texSec); }
-.${PANEL_CLASS} .bn-switch { position: relative; flex-shrink: 0; width: 30px; height: 18px; }
+.${PANEL_CLASS} .bn-control { flex: 1 0 0; min-width: max-content; display: flex; justify-content: flex-end; }
+.${PANEL_CLASS} .bn-disabled { opacity: 0.4; pointer-events: none; }
+.${PANEL_CLASS} .bn-switch { position: relative; width: 30px; height: 18px; border-radius: 44px; }
 .${PANEL_CLASS} .bn-track {
   box-sizing: border-box; width: 30px; height: 18px; padding: 2px; border-radius: 44px;
-  background: color-mix(in srgb, var(--c-texTer) 40%, transparent);
-  transition: background 0.2s;
+  background: var(--ca-swiTogDesTraBgVar); transition: background 0.2s, box-shadow 0.2s;
 }
 .${PANEL_CLASS} .bn-knob {
-  width: 14px; height: 14px; border-radius: 44px; background: #fff; transition: transform 0.2s;
+  width: 14px; height: 14px; border-radius: 44px; background: #fff;
+  transition: transform 0.2s ease-out, background 0.2s ease-out;
 }
 .${PANEL_CLASS} .bn-switch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
-.${PANEL_CLASS} .bn-switch input:checked + .bn-track { background: var(--c-bluIcoAccPri, #2783de); }
+.${PANEL_CLASS} .bn-switch input:checked + .bn-track { background: var(--c-bluIcoAccPri); }
 .${PANEL_CLASS} .bn-switch input:checked + .bn-track .bn-knob { transform: translateX(12px); }
-.${PANEL_CLASS} .bn-switch input:focus-visible + .bn-track { outline: 2px solid var(--c-bluIcoAccPri, #2783de); }
-.${PANEL_CLASS} select {
-  font: inherit; font-size: 14px; color: inherit; background: transparent; cursor: pointer;
-  border: 1px solid var(--c-borPri); border-radius: 6px; padding: 2px 6px;
+.${PANEL_CLASS} .bn-switch input:focus-visible + .bn-track { box-shadow: 0 0 0 2px var(--c-bluIcoAccPri); }
+.${PANEL_CLASS} .bn-select {
+  display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px;
+  font: inherit; font-size: 14px; font-weight: 500; line-height: 1.2; color: inherit;
+  background: transparent; border: 1px solid var(--ca-borPriTra); border-radius: 6px;
+  cursor: pointer; white-space: nowrap; user-select: none; transition: background 20ms ease-in;
 }
-.${PANEL_CLASS} select option { background: var(--c-bacPri); }
-.${PANEL_CLASS} .bn-disabled { opacity: 0.5; pointer-events: none; }
 .${PANEL_CLASS} .bn-notice {
   margin: 4px 0 8px; padding: 8px 12px; border-radius: 6px; font-size: 13px; line-height: 18px;
   color: var(--c-texPri); background: color-mix(in srgb, var(--c-texTer) 15%, transparent);
 }
+.${PANEL_CLASS} .bn-select:hover, .${PANEL_CLASS} .bn-select[aria-expanded=true] {
+  background: var(--ca-butHovBac);
+}
+.${PANEL_CLASS} .bn-select svg { width: 8.6px; height: 14px; fill: var(--c-icoSec); flex-shrink: 0; }
+.${PANEL_CLASS} .bn-menu {
+  position: fixed; z-index: 1; box-sizing: border-box; min-width: 220px; max-width: 320px;
+  display: flex; flex-direction: column; gap: 1px; padding: 4px;
+  background: var(--c-popBac); border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--c-borPri), 0 14px 28px -6px rgba(0, 0, 0, 0.2),
+    0 2px 4px -1px rgba(0, 0, 0, 0.12);
+}
+.${PANEL_CLASS} .bn-item {
+  display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px;
+  font: inherit; font-size: 14px; line-height: 1.2; color: inherit; text-align: start;
+  background: transparent; border: 0; border-radius: 6px; cursor: pointer; white-space: nowrap;
+}
+.${PANEL_CLASS} .bn-item:hover, .${PANEL_CLASS} .bn-item:focus-visible {
+  background: var(--ca-butHovBac); outline: none;
+}
+.${PANEL_CLASS} .bn-item span { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; }
+.${PANEL_CLASS} .bn-item svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+.${PANEL_CLASS} .bn-item:not([aria-checked=true]) svg { visibility: hidden; }
 `;
 
 // Added only while our tab is open. Notion resets attributes on the dialog, so this can't hang off
@@ -54,7 +87,9 @@ const OPEN_CSS = `[role=dialog] [role=tabpanel]:not(.${PANEL_CLASS}) { display: 
 
 const ICON = `<svg viewBox="0 0 20 20" aria-hidden="true" role="graphics-symbol"><path d="M4.5 3.875a.625.625 0 0 1 .625.625v2.08a2.126 2.126 0 0 1 0 4.09v4.83a.625.625 0 1 1-1.25 0v-4.83a2.126 2.126 0 0 1 0-4.09V4.5a.625.625 0 0 1 .625-.625m0 3.75a.875.875 0 1 0 0 1.75.875.875 0 0 0 0-1.75m5.5-3.75a.625.625 0 0 1 .625.625v6.08a2.126 2.126 0 0 1 0 4.09v.83a.625.625 0 1 1-1.25 0v-.83a2.126 2.126 0 0 1 0-4.09V4.5A.625.625 0 0 1 10 3.875m0 7.75a.875.875 0 1 0 0 1.75.875.875 0 0 0 0-1.75m5.5-7.75a.625.625 0 0 1 .625.625v.08a2.126 2.126 0 0 1 0 4.09v6.83a.625.625 0 1 1-1.25 0V8.67a2.126 2.126 0 0 1 0-4.09V4.5a.625.625 0 0 1 .625-.625m0 1.75a.875.875 0 1 0 0 1.75.875.875 0 0 0 0-1.75"/></svg>`;
 
-let uid = 0;
+// Notion's dropdown chevron and menu checkmark.
+const CHEVRON = `<svg viewBox="3.06 0 9.88 16" aria-hidden="true"><path d="m12.76 6.52-4.32 4.32a.62.62 0 0 1-.44.18.62.62 0 0 1-.44-.18L3.24 6.52a.63.63 0 0 1 0-.88c.24-.24.64-.24.88 0L8 9.52l3.88-3.88c.24-.24.64-.24.88 0s.24.64 0 .88"/></svg>`;
+const CHECK = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.834 3.309a.625.625 0 0 1 1.072.642l-5.244 8.74a.625.625 0 0 1-1.01.085L3.155 8.699a.626.626 0 0 1 .95-.813l2.93 3.419z"/></svg>`;
 
 function toggle(checked: boolean, label: string, onChange: (checked: boolean) => void) {
   const wrap = h("div", "bn-switch");
@@ -70,15 +105,109 @@ function toggle(checked: boolean, label: string, onChange: (checked: boolean) =>
   return wrap;
 }
 
+/**
+ * A dropdown like the ones in Notion's settings: a button showing the current choice that opens
+ * a menu with a checkmark on it. The menu stays inside our panel so Notion doesn't treat clicks on
+ * it as clicks outside the dialog.
+ */
+function dropdown(
+  label: string,
+  choices: readonly { value: string; label: string }[],
+  value: string,
+  onChange: (value: string) => void,
+) {
+  const button = h("button", "bn-select");
+  button.type = "button";
+  button.setAttribute("aria-label", label);
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", "false");
+  const current = h("span", undefined, choices.find((c) => c.value === value)?.label ?? value);
+  button.append(current);
+  button.insertAdjacentHTML("beforeend", CHEVRON);
+
+  let menu: HTMLElement | null = null;
+  const close = (refocus = false) => {
+    if (!menu) return;
+    menu.remove();
+    menu = null;
+    button.setAttribute("aria-expanded", "false");
+    document.removeEventListener("pointerdown", onOutside, true);
+    if (refocus) button.focus();
+  };
+  const onOutside = (event: Event) => {
+    const target = event.target as Node;
+    if (!menu?.contains(target) && !button.contains(target)) close();
+  };
+
+  const open = () => {
+    const panel = button.closest(`.${PANEL_CLASS}`);
+    if (!panel) return;
+    menu = h("div", "bn-menu");
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", label);
+    for (const choice of choices) {
+      const item = h("button", "bn-item");
+      item.type = "button";
+      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("aria-checked", String(choice.value === value));
+      item.append(h("span", undefined, choice.label));
+      item.insertAdjacentHTML("beforeend", CHECK);
+      item.addEventListener("click", () => {
+        close(true);
+        if (choice.value !== value) onChange(choice.value);
+      });
+      menu.append(item);
+    }
+    menu.addEventListener("keydown", (event) => {
+      const items = [...(menu?.querySelectorAll<HTMLElement>(".bn-item") ?? [])];
+      const index = items.indexOf(document.activeElement as HTMLElement);
+      if (event.key === "Escape" || event.key === "Tab") close(true);
+      else if (event.key === "ArrowDown") items[(index + 1) % items.length]?.focus();
+      else if (event.key === "ArrowUp") items.at(index - 1)?.focus();
+      else return;
+      // Escape would otherwise close Notion's whole dialog.
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    panel.append(menu);
+
+    // Right-aligned under the button, or above it when there's no room below. Notion's dialog may
+    // be transformed, which moves the box fixed elements are placed in, so correct by the offset.
+    const anchor = button.getBoundingClientRect();
+    const size = menu.getBoundingClientRect();
+    const below = anchor.bottom + 4 + size.height <= window.innerHeight - 8;
+    const left = Math.max(8, anchor.right - size.width);
+    const top = below ? anchor.bottom + 4 : Math.max(8, anchor.top - 4 - size.height);
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+    const placed = menu.getBoundingClientRect();
+    menu.style.left = `${2 * left - placed.left}px`;
+    menu.style.top = `${2 * top - placed.top}px`;
+
+    button.setAttribute("aria-expanded", "true");
+    document.addEventListener("pointerdown", onOutside, true);
+    (
+      menu.querySelector<HTMLElement>("[aria-checked=true]") ?? menu.querySelector("button")
+    )?.focus();
+  };
+
+  button.addEventListener("click", () => (menu ? close() : open()));
+  button.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown" || menu) return;
+    event.preventDefault();
+    open();
+  });
+  return button;
+}
+
 function row(label: string, description: string | undefined, control: HTMLElement) {
   const el = h("div", "bn-row");
-  const text = h("div");
-  const id = `bn-label-${++uid}`;
-  const labelEl = h("div", "bn-label", label);
-  labelEl.id = id;
-  text.append(labelEl);
+  const text = h("div", "bn-text");
+  text.append(h("div", "bn-label", label));
   if (description) text.append(h("div", "bn-desc", description));
-  el.append(text, control);
+  const controlWrap = h("div", "bn-control");
+  controlWrap.append(control);
+  el.append(text, controlWrap);
   return el;
 }
 
@@ -88,36 +217,35 @@ function optionControl(tweak: Tweak, option: OptionDef, store: SettingsStore): H
       store.setOption(tweak, option.key, checked),
     );
   }
-  const select = h("select");
-  select.setAttribute("aria-label", option.label);
-  for (const choice of option.choices) {
-    const el = h("option", undefined, choice.label);
-    el.value = choice.value;
-    select.append(el);
-  }
-  select.value = String(store.getOption(tweak, option.key));
-  select.addEventListener("change", () => store.setOption(tweak, option.key, select.value));
-  return select;
+  return dropdown(
+    option.label,
+    option.choices,
+    String(store.getOption(tweak, option.key)),
+    (value) => store.setOption(tweak, option.key, value),
+  );
 }
 
-/** Builds the panel content. Exported for tests. */
+/** Builds the panel content, laid out like Notion's own settings pages. Exported for tests. */
 export function renderPanel(
   tweaks: readonly Tweak[],
   store: SettingsStore,
   status: StatusBoard,
 ): HTMLElement {
   const inner = h("div", "bn-inner");
-  inner.append(
+  const header = h("header", "bn-header");
+  header.append(
     h("div", "bn-title", "Better Notion"),
-    h("div", "bn-subtitle", "Personal tweaks from the Better Notion userscript."),
+    h("div", "bn-subtitle", "Personal tweaks from the Better Notion userscript"),
   );
+  const sections = h("div");
   for (const tweak of tweaks) {
     const enabled = store.isEnabled(tweak);
-    const section = h("div", "bn-tweak");
+    const section = h("section", "bn-section");
     section.dataset.tweak = tweak.id;
-    section.append(
+    const rows = h("div", "bn-rows");
+    rows.append(
       row(
-        tweak.name,
+        "Enabled",
         tweak.description,
         toggle(enabled, tweak.name, (checked) => store.setEnabled(tweak, checked)),
       ),
@@ -126,17 +254,20 @@ export function renderPanel(
     if (notice) {
       const el = h("div", "bn-notice", notice);
       el.setAttribute("role", "status");
-      section.append(el);
+      rows.append(el);
     }
-    if (tweak.options?.length) {
-      const options = h("div", enabled ? "bn-options" : "bn-options bn-disabled");
-      for (const option of tweak.options) {
-        options.append(row(option.label, option.description, optionControl(tweak, option, store)));
+    for (const option of tweak.options ?? []) {
+      const optionRow = row(option.label, option.description, optionControl(tweak, option, store));
+      if (!enabled) {
+        optionRow.classList.add("bn-disabled");
+        optionRow.setAttribute("aria-disabled", "true");
       }
-      section.append(options);
+      rows.append(optionRow);
     }
-    inner.append(section);
+    section.append(h("div", "bn-heading", tweak.name), rows);
+    sections.append(section);
   }
+  inner.append(header, sections);
   return inner;
 }
 
