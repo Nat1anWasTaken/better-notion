@@ -35,6 +35,11 @@ pnpm format    # apply Biome fixes
   changes (for example with a `MutationObserver`), not just apply once.
 - Notion's DOM and class names are unstable. Prefer semantic hooks (element types, `rel`, ARIA
   attributes) over generated class names.
+- Live markdown edits blocks through Notion's private data layer (`src/tweaks/live-markdown/notion/`):
+  the block store on a block element's React props, and the transaction functions found through
+  the bundler's chunk array. Module ids change with every Notion release, so find modules by export
+  name or source, never by id, and check every lookup. If one fails, the tweak must stay off
+  rather than edit text some other way.
 - Tests run in Vitest. Add `// @vitest-environment happy-dom` at the top of tests that need a DOM.
   Unit tests don't prove a tweak works on Notion; check behaviour in the real app when you can.
 
