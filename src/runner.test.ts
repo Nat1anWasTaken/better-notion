@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runTweaks } from "./runner";
 import { memoryBackend, SettingsStore } from "./settings/store";
+import { StatusBoard } from "./status";
 import type { Tweak } from "./tweaks/types";
 
 function tweak(overrides: Partial<Tweak> & Pick<Tweak, "id">): Tweak {
@@ -23,6 +24,7 @@ describe("runTweaks", () => {
         tweak({ id: "after", run: after }),
       ],
       new SettingsStore(memoryBackend()),
+      new StatusBoard(),
     );
 
     expect(after).toHaveBeenCalledOnce();
@@ -35,7 +37,7 @@ describe("runTweaks", () => {
     const t = tweak({ id: "off", defaultEnabled: false, run });
     const store = new SettingsStore(memoryBackend());
 
-    runTweaks([t], store);
+    runTweaks([t], store, new StatusBoard());
     expect(run).not.toHaveBeenCalled();
 
     store.setEnabled(t, true);
@@ -47,7 +49,7 @@ describe("runTweaks", () => {
     const t = tweak({ id: "on", run: () => cleanup });
     const store = new SettingsStore(memoryBackend());
 
-    runTweaks([t], store);
+    runTweaks([t], store, new StatusBoard());
     store.setEnabled(t, false);
     expect(cleanup).toHaveBeenCalledOnce();
   });
@@ -64,8 +66,25 @@ describe("runTweaks", () => {
     });
     const store = new SettingsStore(memoryBackend());
 
-    runTweaks([t], store);
+    runTweaks([t], store, new StatusBoard());
     store.setOption(t, "flag", true);
     expect(seen).toEqual([true]);
+  });
+
+  it("shows a tweak's notice while it runs and clears it when it stops", () => {
+    const t = tweak({
+      id: "notice",
+      run: (ctx) => {
+        ctx.setNotice("Not on this Notion");
+        return () => {};
+      },
+    });
+    const store = new SettingsStore(memoryBackend());
+    const status = new StatusBoard();
+
+    runTweaks([t], store, status);
+    expect(status.get("notice")).toBe("Not on this Notion");
+    store.setEnabled(t, false);
+    expect(status.get("notice")).toBeUndefined();
   });
 });

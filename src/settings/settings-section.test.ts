@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeAll, describe, expect, it } from "vitest";
+import { StatusBoard } from "../status";
 import type { Tweak } from "../tweaks/types";
 import { mountSettingsSection } from "./settings-section";
 import { memoryBackend, SettingsStore } from "./store";
@@ -24,6 +25,7 @@ const tweak: Tweak = {
   run: () => undefined,
 };
 const store = new SettingsStore(memoryBackend());
+const status = new StatusBoard();
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 50));
 const ours = () =>
@@ -48,7 +50,7 @@ function fakeDialog() {
 describe("mountSettingsSection", () => {
   beforeAll(async () => {
     fakeDialog();
-    mountSettingsSection([tweak], store);
+    mountSettingsSection([tweak], store, status);
     await flush();
   });
 
@@ -128,5 +130,14 @@ describe("mountSettingsSection", () => {
     fakeDialog();
     await flush();
     expect(ours()).not.toBeNull();
+  });
+
+  it("shows a tweak's notice", () => {
+    ours()?.click();
+    status.set("demo", "Not available on this version of Notion.");
+    const notice = document.querySelector('[data-tweak="demo"] [role=status]');
+    expect(notice?.textContent).toBe("Not available on this version of Notion.");
+    status.set("demo", null);
+    expect(document.querySelector('[data-tweak="demo"] [role=status]')).toBeNull();
   });
 });

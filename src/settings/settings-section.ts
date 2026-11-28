@@ -1,4 +1,5 @@
 import { addStyle, h } from "../dom";
+import type { StatusBoard } from "../status";
 import type { OptionDef, Tweak } from "../tweaks/types";
 import type { SettingsStore } from "./store";
 
@@ -51,6 +52,10 @@ const CSS = `
   font: inherit; font-size: 14px; font-weight: 500; line-height: 1.2; color: inherit;
   background: transparent; border: 1px solid var(--ca-borPriTra); border-radius: 6px;
   cursor: pointer; white-space: nowrap; user-select: none; transition: background 20ms ease-in;
+}
+.${PANEL_CLASS} .bn-notice {
+  margin: 4px 0 8px; padding: 8px 12px; border-radius: 6px; font-size: 13px; line-height: 18px;
+  color: var(--c-texPri); background: color-mix(in srgb, var(--c-texTer) 15%, transparent);
 }
 .${PANEL_CLASS} .bn-select:hover, .${PANEL_CLASS} .bn-select[aria-expanded=true] {
   background: var(--ca-butHovBac);
@@ -221,7 +226,11 @@ function optionControl(tweak: Tweak, option: OptionDef, store: SettingsStore): H
 }
 
 /** Builds the panel content, laid out like Notion's own settings pages. Exported for tests. */
-export function renderPanel(tweaks: readonly Tweak[], store: SettingsStore): HTMLElement {
+export function renderPanel(
+  tweaks: readonly Tweak[],
+  store: SettingsStore,
+  status: StatusBoard,
+): HTMLElement {
   const inner = h("div", "bn-inner");
   const header = h("header", "bn-header");
   header.append(
@@ -241,6 +250,12 @@ export function renderPanel(tweaks: readonly Tweak[], store: SettingsStore): HTM
         toggle(enabled, tweak.name, (checked) => store.setEnabled(tweak, checked)),
       ),
     );
+    const notice = status.get(tweak.id);
+    if (notice) {
+      const el = h("div", "bn-notice", notice);
+      el.setAttribute("role", "status");
+      rows.append(el);
+    }
     for (const option of tweak.options ?? []) {
       const optionRow = row(option.label, option.description, optionControl(tweak, option, store));
       if (!enabled) {
@@ -293,7 +308,11 @@ function ourIcon(): SVGElement {
  * Adds a "Better Notion" section to Notion's Settings dialog, listing every tweak with a switch
  * and its options.
  */
-export function mountSettingsSection(tweaks: readonly Tweak[], store: SettingsStore): void {
+export function mountSettingsSection(
+  tweaks: readonly Tweak[],
+  store: SettingsStore,
+  status: StatusBoard,
+): void {
   addStyle(CSS);
 
   interface Open {
@@ -361,7 +380,7 @@ export function mountSettingsSection(tweaks: readonly Tweak[], store: SettingsSt
 
     const panel = h("div", PANEL_CLASS);
     panel.setAttribute("role", "tabpanel");
-    const render = () => panel.replaceChildren(renderPanel(tweaks, store));
+    const render = () => panel.replaceChildren(renderPanel(tweaks, store, status));
     render();
     const removeStyle = addStyle(OPEN_CSS, "open");
     placePanel(dialog, panel);
@@ -371,7 +390,14 @@ export function mountSettingsSection(tweaks: readonly Tweak[], store: SettingsSt
       panel,
       hidden: selected,
       standIn,
-      unsubscribe: store.subscribe(render),
+      unsubscribe: (() => {
+        const offStore = store.subscribe(render);
+        const offStatus = status.subscribe(render);
+        return () => {
+          offStore();
+          offStatus();
+        };
+      })(),
     };
   };
 

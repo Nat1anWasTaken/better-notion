@@ -6,14 +6,14 @@ A userscript with my personal tweaks to Notion.
 
 - **Static favicon**: keeps the tab icon on the Notion logo instead of the current page's icon,
   so Notion is easy to find in a collapsed vertical tab bar.
-- **Live markdown**: shows the markdown syntax of the text under the caret, like Obsidian's Live
-  Preview: `**bold**`, `[link](url)`, `==highlight==`, `$equation$`, `## ` before headings,
-  `- [ ] ` before to-dos, code fences and so on. The syntax is drawn, not written into the page.
-  Step over a marker with the arrow keys and press Backspace to remove that formatting, link,
-  highlight or equation (an equation leaves its TeX behind as text). Backspace at the start of a
-  heading or list item turns it into text, `#` at the start of a heading makes it smaller, and an
-  equation's editor shows its `$` / `$$` delimiters, where Backspace at the start turns the
-  equation into text. Slash commands and undo work as usual.
+- **Live markdown**: edit Notion text as markdown, like Obsidian's Live Preview. The block under
+  the caret shows its markdown (`## `, `**bold**`, `[link](url)`, `==highlight==`, `$equation$`,
+  …) as real text you can edit: delete a `#` and the heading gets bigger, type `- ` and the line
+  becomes a bullet. Formatting away from the caret stays rendered. Bullets, numbers, checkboxes,
+  toggles and quotes keep Notion's look, and Backspace at their start turns them into text. Enter,
+  Backspace, Tab and Shift-Tab split, merge and move blocks as in Notion, and `/`, `@` and `[[`
+  open Notion's menus. Edits are saved through Notion's own transactions, so they sync, show up for
+  collaborators and undo with ⌘Z.
 
 ## Settings
 
