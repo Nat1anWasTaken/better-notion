@@ -6,6 +6,20 @@ A userscript with my personal tweaks to Notion.
 
 - **Static favicon**: keeps the tab icon on the Notion logo instead of the current page's icon,
   so Notion is easy to find in a collapsed vertical tab bar.
+- **Live markdown**: shows the markdown syntax of the text under the caret, like Obsidian's Live
+  Preview: `**bold**`, `[link](url)`, `==highlight==`, `$equation$`, `## ` before headings,
+  `- [ ] ` before to-dos, code fences and so on. The syntax is drawn, not written into the page.
+  Step over a marker with the arrow keys and press Backspace to remove that formatting, link,
+  highlight or equation (an equation leaves its TeX behind as text). Backspace at the start of a
+  heading or list item turns it into text, `#` at the start of a heading makes it smaller, and an
+  equation's editor shows its `$` / `$$` delimiters, where Backspace at the start turns the
+  equation into text. Slash commands and undo work as usual.
+
+## Settings
+
+Open Notion's **Settings** and pick **Better Notion** at the bottom of the sidebar. Each tweak can
+be turned off there, and tweaks with options list them underneath. Settings are kept in the
+userscript manager's storage and shared by every Notion tab.
 
 ## Install
 
@@ -23,7 +37,9 @@ pnpm check    # lint, typecheck, test and build
 ```
 
 Each tweak lives in `src/tweaks/` and is registered in `src/tweaks/index.ts`.
-The runner isolates tweaks, so one that throws doesn't stop the others.
+The runner isolates tweaks, so one that throws doesn't stop the others. A tweak that returns a
+cleanup from `run` can be turned on and off from the settings section without a reload; options it
+declares show up there automatically.
 
 ## Commits
 

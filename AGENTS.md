@@ -18,8 +18,11 @@ pnpm format    # apply Biome fixes
 
 - `src/main.ts` runs every registered tweak through `src/runner.ts`, which catches errors so one
   broken tweak doesn't stop the others.
-- `src/tweaks/` holds one file per tweak, exporting a `Tweak` (see `types.ts`), plus a
+- `src/tweaks/` holds one file (or folder) per tweak, exporting a `Tweak` (see `types.ts`), plus
   `*.test.ts` next to it. Register new tweaks in `src/tweaks/index.ts`.
+- `src/settings/` holds the settings store (GM storage) and the "Better Notion" section injected
+  into Notion's Settings dialog. Tweaks declare `options` and read them through the `ctx` passed to
+  `run`; return a cleanup from `run` so the tweak can be switched off live.
 - `vite.config.ts` holds the userscript header (`@match`, `@run-at`, update URLs).
 
 ## Writing tweaks
