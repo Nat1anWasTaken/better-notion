@@ -12,6 +12,12 @@ import { renderSource, revealMarkers } from "./render";
 
 export type Direction = "up" | "down" | "left" | "right";
 
+/**
+ * Where the caret starts: an offset in the block's plain text, or an edge of its source, outside
+ * any markers there (as when arrowing in from the block before or after).
+ */
+export type Caret = number | "start" | "end";
+
 export interface SessionOptions {
   source: SourceOptions;
   /** Show the markers of the run under the caret only, or of the whole block. */
@@ -125,7 +131,7 @@ export class Session {
     private currentStore: BlockStore,
     block: HTMLElement,
     leaf: HTMLElement,
-    caret: number,
+    caret: Caret,
   ) {
     this.currentType = "";
     this.currentSpans = [];
@@ -163,7 +169,13 @@ export class Session {
     document.getSelection()?.removeAllRanges();
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     this.el.focus({ preventScroll: true });
-    this.render(toSource(this.parsed.pieces, caret));
+    this.render(
+      caret === "start"
+        ? 0
+        : caret === "end"
+          ? this.source.length
+          : toSource(this.parsed.pieces, caret),
+    );
     this.frame = requestAnimationFrame(this.tick);
   }
 

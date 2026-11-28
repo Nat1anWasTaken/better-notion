@@ -7,7 +7,13 @@ import { plainText } from "./model/rich-text";
 import { blockStore, type Internals, loadInternals } from "./notion/internals";
 import { editableLeaves, findLeaf, LEAF, leafOf, modelOffset, rangeAtModel } from "./notion/leaf";
 import { EDITOR_CSS } from "./overlay/render";
-import { type Direction, Session, type SessionHost, type SessionOptions } from "./overlay/session";
+import {
+  type Caret,
+  type Direction,
+  Session,
+  type SessionHost,
+  type SessionOptions,
+} from "./overlay/session";
 import { BlockIds, restructure } from "./restructure";
 import { textOffset } from "./text";
 
@@ -89,6 +95,8 @@ export const liveMarkdown: Tweak = {
     /** Set while the caret is being handed to Notion, so the editor doesn't reopen meanwhile. */
     let handingOff = false;
     let pointerDown = false;
+    /** The leaf the arrow keys just moved into, and which edge of its source the caret goes to. */
+    let arrived: { leaf: HTMLElement; edge: "start" | "end" } | null = null;
     const ids = new BlockIds();
     let scheduled = false;
 
@@ -199,7 +207,9 @@ export const liveMarkdown: Tweak = {
           const point = document.caretRangeFromPoint?.(left, y);
           if (point && target.contains(point.startContainer)) range = point;
         }
-        select(range ?? rangeAtModel(target, back === (target !== from) ? Infinity : 0));
+        const edge = back === (target !== from) ? "end" : "start";
+        arrived = range ? null : { leaf: target, edge };
+        select(range ?? rangeAtModel(target, edge === "end" ? Infinity : 0));
         target.scrollIntoView({ block: "nearest" });
         schedule();
       },
@@ -258,11 +268,13 @@ export const liveMarkdown: Tweak = {
       }
       const block = leaf.closest<HTMLElement>("[data-block-id]");
       if (!block || leafOf(block) !== leaf) return;
-      open(block, leaf, modelOffset(leaf, node, selection.focusOffset));
+      const edge = arrived?.leaf === leaf ? arrived.edge : null;
+      arrived = null;
+      open(block, leaf, edge ?? modelOffset(leaf, node, selection.focusOffset));
     };
 
-    /** Opens the editor on a block, with the caret at a plain-text offset. */
-    function open(block: HTMLElement, leaf: HTMLElement, caret: number) {
+    /** Opens the editor on a block, with the caret at a plain-text offset or an edge. */
+    function open(block: HTMLElement, leaf: HTMLElement, caret: Caret) {
       const store = blockStore(block);
       const type = store?.getValue()?.type;
       if (!store || !type || !EDITABLE.has(type)) return null;
@@ -288,6 +300,7 @@ export const liveMarkdown: Tweak = {
 
     const onPointerDown = () => {
       pointerDown = true;
+      arrived = null;
     };
     const onPointerUp = () => {
       pointerDown = false;
